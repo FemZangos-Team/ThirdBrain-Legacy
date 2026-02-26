@@ -39,7 +39,9 @@ class ConversationRepository(
      */
     fun selectByUuid(uuid: UUID): List<Conversation> {
         val sql = "SELECT * FROM conversations WHERE uuid = '%s' ORDER BY id DESC LIMIT 100".format(uuid.toString())
-        return executeAndProcessConversations(sql)
+        val latestConversations = executeAndProcessConversations(sql).toMutableList()
+        latestConversations.reverse()
+        return latestConversations
     }
 
     /**

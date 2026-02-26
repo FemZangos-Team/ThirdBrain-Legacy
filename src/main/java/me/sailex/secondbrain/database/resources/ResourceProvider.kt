@@ -45,8 +45,11 @@ class ResourceProvider(
         shutdownServiceNow()
         executorService = initExecutorPool()
         runAsync {
-            loadedConversations.forEach { conversations ->
-                conversations.value.forEach { conversationRepository.insert(it) } }
+            loadedConversations.forEach { (uuid, conversations) ->
+                // Forward-only fix: rewrite each NPC's current conversation snapshot to avoid new duplicates.
+                conversationRepository.deleteByUuid(uuid)
+                conversations.forEach { conversationRepository.insert(it) }
+            }
             LogUtil.info("Saved conversations to db")
         }.get()
         executorService.shutdownNow()

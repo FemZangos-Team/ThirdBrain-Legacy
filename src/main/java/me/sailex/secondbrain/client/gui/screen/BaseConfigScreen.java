@@ -57,7 +57,7 @@ public class BaseConfigScreen extends ConfigScreen<BaseConfig> {
         panel.childById(LabelComponent.class, "verbose-label").text(Text.of(BaseConfig.VERBOSE_KEY));
         panel.childById(CheckboxComponent.class, "verbose")
                 .checked(config.isVerbose())
-                .onChanged(listener -> config.setVerbose(!config.isVerbose()));
+                .onChanged(config::setVerbose);
 
         panel.childById(LabelComponent.class, "ollamaUrl-label").text(Text.of(BaseConfig.OLLAMA_URL_KEY));
         panel.childById(TextAreaComponent.class, "ollamaUrl")

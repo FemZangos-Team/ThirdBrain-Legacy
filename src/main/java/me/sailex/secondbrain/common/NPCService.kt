@@ -30,10 +30,24 @@ class NPCService(
     }
 
     private lateinit var executorService: ExecutorService
+    @Volatile
+    private var deathListenerRegistered = false
     val uuidToNpc = ConcurrentHashMap<UUID, NPC>()
 
     fun init() {
         executorService = Executors.newSingleThreadExecutor()
+        registerDeathListener()
+    }
+
+    @Synchronized
+    private fun registerDeathListener() {
+        if (deathListenerRegistered) {
+            return
+        }
+        NPCEvents.ON_DEATH.register {
+            removeNpc(it.uuid, EntityVer.getWorld(it).server!!.playerManager)
+        }
+        deathListenerRegistered = true
     }
 
     fun createNpc(newConfig: NPCConfig, server: MinecraftServer, spawnPos: BlockPos?, owner: PlayerEntity?) {
@@ -52,10 +66,6 @@ class NPCService(
 
                 LogUtil.infoInChat(("Added NPC with name: $name"))
                 npc.eventHandler.onEvent(Instructions.INITIAL_PROMPT)
-            }
-
-            NPCEvents.ON_DEATH.register {
-                removeNpc(it.uuid, EntityVer.getWorld(it).server!!.playerManager)
             }
         }, executorService).exceptionally {
             LogUtil.errorInChat(it.message)

@@ -149,7 +149,7 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
     private CheckboxComponent buildUseTtsCheckbox() {
         return checkbox(Text.of("Use TTS"))
                 .checked(config.isTTS())
-                .onChanged(listener -> config.setTTS(!config.isTTS()));
+                .onChanged(config::setTTS);
     }
 
     private void drawLLMTypeDropDown(FlowLayout panel) {

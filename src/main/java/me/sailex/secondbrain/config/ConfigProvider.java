@@ -94,7 +94,14 @@ public class ConfigProvider {
     }
 
     public synchronized void deleteByType(LLMType llmType) {
-        npcConfigs.removeIf(config -> config != null && config.getLlmType() == llmType);
+        List<NPCConfig> configsToRemove = new ArrayList<>();
+        npcConfigs.forEach(config -> {
+            if (config != null && config.getLlmType() == llmType) {
+                configsToRemove.add(config);
+            }
+        });
+        npcConfigs.removeAll(configsToRemove);
+        configsToRemove.forEach(config -> delete(config.getConfigName()));
     }
 
     public synchronized NPCConfig addNpcConfig(NPCConfig npcConfig) {
