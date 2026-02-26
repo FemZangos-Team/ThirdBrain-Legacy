@@ -95,7 +95,7 @@ public class NPCZoneBehaviorScreen extends ConfigScreen<NPCConfig> {
             client.setScreen(new SecondBrainScreen(existingConfigs, baseConfig, networkManager));
             return;
         }
-        client.setScreen(new NPCConfigScreen(networkManager, config, isEdit, existingConfigs));
+        client.setScreen(new NPCConfigScreen(networkManager, config, isEdit, existingConfigs, this));
     }
 
     private void renderZones(FlowLayout zoneList) {

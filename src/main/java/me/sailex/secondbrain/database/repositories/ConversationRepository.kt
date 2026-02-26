@@ -24,22 +24,48 @@ class ConversationRepository(
     }
 
     fun insert(conversation: Conversation) {
-        val statement =
-            sqliteClient.buildPreparedStatement(
-                "INSERT INTO conversations (uuid, role, message) VALUES (?, ?, ?)",
-            )
-        statement.setString(1, conversation.uuid.toString())
-        statement.setString(2, conversation.role)
-        statement.setString(3, conversation.message)
-        sqliteClient.update(statement)
+        val statement = sqliteClient.buildPreparedStatement(
+            "INSERT INTO conversations (uuid, role, message) VALUES (?, ?, ?)",
+        )
+        try {
+            statement.setString(1, conversation.uuid.toString())
+            statement.setString(2, conversation.role)
+            statement.setString(3, conversation.message)
+            statement.executeUpdate()
+        } finally {
+            statement.close()
+        }
     }
 
     /**
      * Selects latest one hundred conversations of an NPC
      */
     fun selectByUuid(uuid: UUID): List<Conversation> {
-        val sql = "SELECT * FROM conversations WHERE uuid = '%s' ORDER BY id DESC LIMIT 100".format(uuid.toString())
-        val latestConversations = executeAndProcessConversations(sql).toMutableList()
+        val statement = sqliteClient.buildPreparedStatement(
+            "SELECT uuid, role, message FROM conversations WHERE uuid = ? ORDER BY id DESC LIMIT 100"
+        )
+        val latestConversations = arrayListOf<Conversation>()
+
+        try {
+            statement.setString(1, uuid.toString())
+            val result = statement.executeQuery()
+            try {
+                while (result.next()) {
+                    latestConversations.add(
+                        Conversation(
+                            UUID.fromString(result.getString("uuid")),
+                            result.getString("role"),
+                            result.getString("message")
+                        )
+                    )
+                }
+            } finally {
+                result.close()
+            }
+        } finally {
+            statement.close()
+        }
+
         latestConversations.reverse()
         return latestConversations
     }
@@ -48,26 +74,14 @@ class ConversationRepository(
      * Deletes all conversations of the given uuid.
      */
     fun deleteByUuid(uuid: UUID) {
-        val sql = "DELETE FROM conversations WHERE uuid = '%s'".format(uuid.toString())
-        sqliteClient.update(sql)
-    }
-
-    private fun executeAndProcessConversations(sql: String): List<Conversation> {
-        val result = sqliteClient.query(sql)
-        val conversations = arrayListOf<Conversation>()
-
-        if (result == null) return emptyList()
-
-        while (result.next()) {
-            val conversation =
-                Conversation(
-                    UUID.fromString(result.getString("uuid")),
-                    result.getString("role"),
-                    result.getString("message")
-                )
-            conversations.add(conversation)
+        val statement = sqliteClient.buildPreparedStatement(
+            "DELETE FROM conversations WHERE uuid = ?"
+        )
+        try {
+            statement.setString(1, uuid.toString())
+            statement.executeUpdate()
+        } finally {
+            statement.close()
         }
-        result.close()
-        return conversations
     }
 }

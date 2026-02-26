@@ -125,12 +125,4 @@ public class BaseConfig implements Configurable {
         return copied;
     }
 
-    public static final String LLM_TIMEOUT_KEY = "LLM Service Timeout";
-    public static final String CONTEXT_CHUNK_RADIUS_KEY = "Chunk Radius";
-    public static final String CONTEXT_VERTICAL_RANGE_KEY = "Vertical Scan Range";
-    public static final String CHUNK_EXPIRY_TIME_KEY = "Chunk Expiry Time";
-    public static final String VERBOSE_KEY = "Debug Mode";
-    public static final String OLLAMA_URL_KEY = "Ollama URL";
-    public static final String OPENAI_BASE_URL_KEY = "OpenAI Compatible URL";
-    public static final String OPENAI_API_KEY = "OpenAI API Key";
 }

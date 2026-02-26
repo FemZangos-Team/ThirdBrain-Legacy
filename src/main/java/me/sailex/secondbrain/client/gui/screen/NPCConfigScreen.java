@@ -11,6 +11,7 @@ import me.sailex.secondbrain.llm.LLMType;
 import me.sailex.secondbrain.networking.packet.CreateNpcPacket;
 import me.sailex.secondbrain.networking.packet.UpdateNpcConfigPacket;
 
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import java.util.List;
@@ -34,6 +35,12 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
     private static final int CHARACTER_INPUT_HEIGHT = 30;
     private static final int MIN_CONVERSATION_RANGE = 2;
     private static final int MAX_CONVERSATION_RANGE = 64;
+    private static final String NPC_NAME_LABEL = "Name of the NPC";
+    private static final String EDIT_NPC_LABEL = "Edit '%s'";
+    private static final String LLM_CHARACTER_LABEL = "Characteristics";
+    private static final String LLM_TYPE_LABEL = "Type";
+    private static final String LLM_MODEL_LABEL = "LLM Model";
+    private static final String CONVERSATION_RANGE_LABEL = "Conversation Range (blocks)";
     private static final List<SkinOption> SKIN_OPTIONS = List.of(
             new SkinOption("Random", ""),
             new SkinOption("Steve", "https://minecraft.wiki/Special:FilePath/Char.png"),
@@ -59,6 +66,7 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
             new VoiceOption("Cedar", "cedar")
     );
     private final List<NPCConfig> existingConfigs;
+    private final Screen parentScreen;
 
     public NPCConfigScreen(
         ClientNetworkManager networkManager,
@@ -66,8 +74,19 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
         boolean isEdit,
         List<NPCConfig> existingConfigs
     ) {
+        this(networkManager, npcConfig, isEdit, existingConfigs, null);
+    }
+
+    public NPCConfigScreen(
+        ClientNetworkManager networkManager,
+        NPCConfig npcConfig,
+        boolean isEdit,
+        List<NPCConfig> existingConfigs,
+        Screen parentScreen
+    ) {
         super(networkManager, npcConfig, isEdit, ID);
         this.existingConfigs = existingConfigs;
+        this.parentScreen = parentScreen;
     }
 
     @Override
@@ -76,10 +95,10 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
 
         LabelComponent npcNameLabel = panel.childById(LabelComponent.class, "npcName-label");
         if (isEdit) {
-            npcNameLabel.text(Text.of(NPCConfig.EDIT_NPC.formatted(config.getNpcName())));
+            npcNameLabel.text(Text.of(EDIT_NPC_LABEL.formatted(config.getNpcName())));
         } else {
             applyLastUsedDefaults(config.getLlmType());
-            npcNameLabel.text(Text.of(NPCConfig.NPC_NAME));
+            npcNameLabel.text(Text.of(NPC_NAME_LABEL));
             TextAreaComponent npcName = textArea(Sizing.fill(WIDE_INPUT_WIDTH), Sizing.fill(SINGLE_LINE_INPUT_HEIGHT))
                     .text(config.getNpcName());
             npcName.onChanged().subscribe(config::setNpcName);
@@ -103,7 +122,13 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
             }
         });
 
-        rootComponent.childById(ButtonComponent.class, "cancel").onPress(button -> close());
+        rootComponent.childById(ButtonComponent.class, "cancel").onPress(button -> {
+            if (parentScreen != null) {
+                client.setScreen(parentScreen);
+            } else {
+                close();
+            }
+        });
     }
 
     private void drawLlmInfo(FlowLayout panel) {
@@ -119,7 +144,7 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
             case OPENAI -> llmInfo.child(buildUseTtsCheckbox());
         }
         //system prompt
-        llmInfo.child(label(Text.of(NPCConfig.LLM_CHARACTER)).shadow(true).margins(Insets.top(7)));
+        llmInfo.child(label(Text.of(LLM_CHARACTER_LABEL)).shadow(true).margins(Insets.top(7)));
         TextAreaComponent llmCharacter = textArea(Sizing.fill(WIDE_INPUT_WIDTH), Sizing.fill(CHARACTER_INPUT_HEIGHT));
         llmCharacter.text(config.getLlmCharacter())
                 .onChanged()
@@ -134,7 +159,7 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
 
     private void drawConversationRangeSection(FlowLayout panel) {
         panel.childById(LabelComponent.class, "conversationRange-label")
-                .text(Text.of(NPCConfig.CONVERSATION_RANGE));
+                .text(Text.of(CONVERSATION_RANGE_LABEL));
 
         DiscreteSliderComponent conversationRangeSlider = panel.childById(DiscreteSliderComponent.class, "conversationRangeSlider");
         conversationRangeSlider
@@ -153,7 +178,7 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
     }
 
     private void drawLLMTypeDropDown(FlowLayout panel) {
-        panel.childById(LabelComponent.class, "llmType-label").text(Text.of(NPCConfig.LLM_TYPE));
+        panel.childById(LabelComponent.class, "llmType-label").text(Text.of(LLM_TYPE_LABEL));
         DropdownComponent llmTypeDropDown = panel.childById(DropdownComponent.class, "llmType");
         ((FlowLayout) llmTypeDropDown.children().get(0)).clearChildren();
         if (isEdit) {
@@ -184,7 +209,7 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
     private void drawLLMModelInput(FlowLayout panel) {
         FlowLayout llmModelContainer = panel.childById(FlowLayout.class, "llmModel");
         llmModelContainer.clearChildren();
-        llmModelContainer.child(label(Text.of(NPCConfig.LLM_MODEL)).shadow(true));
+        llmModelContainer.child(label(Text.of(LLM_MODEL_LABEL)).shadow(true));
         switch (config.getLlmType()) {
             case OLLAMA, OPENAI -> {
                 TextAreaComponent llmModel = textArea(Sizing.fill(HALF_INPUT_WIDTH), Sizing.fill(SINGLE_LINE_INPUT_HEIGHT))

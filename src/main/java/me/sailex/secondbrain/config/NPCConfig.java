@@ -409,17 +409,6 @@ public class NPCConfig implements Configurable {
 		);
 	}
 
-	//name for fields for npc config screen
-	public static final String NPC_NAME = "Name of the NPC";
-	public static final String EDIT_NPC = "Edit '%s'";
-	public static final String LLM_CHARACTER = "Characteristics";
-	public static final String LLM_TYPE = "Type";
-	public static final String LLM_MODEL = "LLM Model";
-	public static final String IS_TTS = "Text to Speech";
-	public static final String CONVERSATION_RANGE = "Conversation Range (blocks)";
-	public static final String ZONE_SPECIFIC_BEHAVIOUR = "Zone Specific Behaviour";
-	public static final String ADD_ZONE = "+ Add Zone";
-
 	public static class ZoneBehavior {
 		private String name = "Zone";
 		private ZoneCoordinate from = new ZoneCoordinate();
