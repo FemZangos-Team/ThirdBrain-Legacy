@@ -65,6 +65,7 @@ class ConversationRepository(
         } finally {
             statement.close()
         }
+
         latestConversations.reverse()
         return latestConversations
     }

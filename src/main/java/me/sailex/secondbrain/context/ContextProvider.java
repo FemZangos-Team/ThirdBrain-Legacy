@@ -47,14 +47,14 @@ public class ContextProvider {
 
 			long entitiesStartNs = System.nanoTime();
 			NearbyEntitiesSnapshot nearbyEntities = getNearbyEntitiesSnapshot();
-				long entitiesMs = millisSince(entitiesStartNs);
+			long entitiesMs = millisSince(entitiesStartNs);
 
-				WorldContext context = new WorldContext(
-						state,
-						inventory,
-						List.copyOf(chunkManager.getNearbyBlocks()),
-						nearbyEntities.entities()
-				);
+			WorldContext context = new WorldContext(
+					state,
+					inventory,
+					List.copyOf(chunkManager.getNearbyBlocks()),
+					nearbyEntities.entities()
+			);
 //			chunkManager.getNearbyBlocks().forEach(blockData -> LogUtil.debugInChat(blockData.toString()));
 			this.cachedContext = context;
 			long totalMs = millisSince(startNs);

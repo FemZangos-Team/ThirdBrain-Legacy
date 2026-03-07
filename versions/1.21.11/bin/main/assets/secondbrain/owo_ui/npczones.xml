@@ -1,0 +1,68 @@
+<owo-ui xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/wisp-forest/owo-lib/1.20/owo-ui.xsd">
+    <components>
+        <flow-layout direction="vertical">
+            <children>
+                <flow-layout direction="vertical" id="panel">
+                    <children>
+                        <flow-layout direction="vertical">
+                            <children>
+                                <label id="title">
+                                    <shadow>true</shadow>
+                                </label>
+
+                                <scroll direction="vertical">
+                                    <flow-layout direction="vertical" id="zoneList">
+                                        <children>
+                                        </children>
+                                        <gap>6</gap>
+                                    </flow-layout>
+                                    <sizing>
+                                        <vertical method="fixed">175</vertical>
+                                    </sizing>
+                                </scroll>
+
+                                <flow-layout direction="horizontal">
+                                    <children>
+                                        <button id="add_zone">
+                                            <text>+ Add Zone</text>
+                                        </button>
+                                        <button id="cancel">
+                                            <text>Cancel</text>
+                                        </button>
+                                        <button id="save">
+                                            <text>Done</text>
+                                        </button>
+                                    </children>
+                                    <gap>6</gap>
+                                </flow-layout>
+                            </children>
+
+                            <margins>
+                                <all>11</all>
+                            </margins>
+                            <gap>8</gap>
+                            <horizontal-alignment>left</horizontal-alignment>
+                            <vertical-alignment>center</vertical-alignment>
+                        </flow-layout>
+                    </children>
+
+                    <horizontal-alignment>center</horizontal-alignment>
+                    <vertical-alignment>center</vertical-alignment>
+                    <surface>
+                        <panel dark="true"/>
+                    </surface>
+                    <sizing>
+                        <horizontal method="fixed">300</horizontal>
+                    </sizing>
+                </flow-layout>
+            </children>
+
+            <horizontal-alignment>center</horizontal-alignment>
+            <vertical-alignment>center</vertical-alignment>
+            <surface>
+                <vanilla-translucent/>
+            </surface>
+        </flow-layout>
+    </components>
+</owo-ui>

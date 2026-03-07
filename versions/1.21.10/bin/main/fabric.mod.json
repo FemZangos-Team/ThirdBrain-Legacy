@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "secondbrain",
+  "version": "${version}",
+  "name": "ThirdBrain",
+  "description": "A Fabric mod that brings intelligent NPCs to your minecraft world.",
+  "authors": ["mr2wei"],
+  "contact": {},
+  "icon": "assets/secondbrain/icon.png",
+  "license": "LGPL-3.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "me.sailex.secondbrain.SecondBrain"
+    ],
+    "client": [
+      "me.sailex.secondbrain.client.SecondBrainClient"
+    ]
+  },
+  "mixins": [
+    "me.sailex.secondbrain.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${fabricLoader}",
+    "minecraft": "${mcDep}"
+  }
+}

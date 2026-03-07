@@ -232,7 +232,6 @@ public class ChunkManager {
     }
 
     private record ScanChunkResult(List<BlockData> blocks, int scannedColumnsCount) {}
-
     public List<BlockData> getNearbyBlocks() {
         return nearbyBlocks;
     }
