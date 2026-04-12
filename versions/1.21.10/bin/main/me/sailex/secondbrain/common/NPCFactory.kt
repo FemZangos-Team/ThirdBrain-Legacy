@@ -13,6 +13,7 @@ import me.sailex.secondbrain.llm.LLMClient
 import me.sailex.secondbrain.llm.LLMType
 import me.sailex.secondbrain.llm.ollama.OllamaClient
 import me.sailex.secondbrain.llm.openai.OpenAiClient
+import me.sailex.secondbrain.llm.openwebui.OpenWebUiClient
 import me.sailex.secondbrain.llm.player2.Player2APIClient
 import me.sailex.secondbrain.model.NPC
 import me.sailex.secondbrain.model.database.Conversation
@@ -21,12 +22,10 @@ import net.minecraft.server.network.ServerPlayerEntity
 class NPCFactory(
     private val configProvider: ConfigProvider,
 ) {
-     fun createNpc(npcEntity: ServerPlayerEntity, config: NPCConfig, loadedConversation: List<Conversation>?): NPC {
+     fun createNpc(npcEntity: ServerPlayerEntity, config: NPCConfig, loadedConversation: List<Conversation>?, llmClient: LLMClient): NPC {
         val baseConfig = configProvider.baseConfig
         val conversationRange = resolveConversationRangeInBlocks(config)
         val contextProvider = ContextProvider(npcEntity, baseConfig, conversationRange)
-
-        val llmClient = initLLMClient(config)
 
         val controller = initController(npcEntity)
 
@@ -34,7 +33,7 @@ class NPCFactory(
             ?.filter { !it.role.equals("system", ignoreCase = true) }
             ?.map { Message(it.message, it.role) }
             ?.toMutableList() ?: mutableListOf()
-        val history = ConversationHistory(llmClient, messages)
+        val history = ConversationHistory(messages)
         val eventHandler = NPCEventHandler(llmClient, history, contextProvider, controller, config)
         return NPC(npcEntity, llmClient, history, eventHandler, controller, contextProvider, config)
     }
@@ -44,11 +43,12 @@ class NPCFactory(
         return AltoClefController(automatone)
     }
 
-    private fun initLLMClient(config: NPCConfig): LLMClient {
+    internal fun initLLMClient(config: NPCConfig): LLMClient {
         val baseConfig = configProvider.baseConfig
         val llmClient = when (config.llmType) {
             LLMType.OLLAMA -> OllamaClient(config.llmModel, baseConfig.ollamaUrl, baseConfig.llmTimeout, baseConfig.isVerbose)
             LLMType.OPENAI -> OpenAiClient(config.llmModel, baseConfig.openaiApiKey, baseConfig.openaiBaseUrl, baseConfig.llmTimeout, config.voiceId)
+            LLMType.OPENWEBUI -> OpenWebUiClient(config.llmModel, baseConfig.openwebuiApiKey, baseConfig.openwebuiBaseUrl, baseConfig.llmTimeout)
             LLMType.PLAYER2 -> Player2APIClient(config.voiceId, config.npcName, baseConfig.llmTimeout)
             else -> throw NPCCreationException("Invalid LLM type: ${config.llmType}")
         }

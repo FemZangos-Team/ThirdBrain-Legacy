@@ -10,12 +10,14 @@ import me.sailex.secondbrain.history.ConversationHistory
 import me.sailex.secondbrain.history.Message
 import me.sailex.secondbrain.llm.LLMClient
 import me.sailex.secondbrain.llm.openai.OpenAiClient
+import me.sailex.secondbrain.llm.openwebui.OpenWebUiClient
 import me.sailex.secondbrain.llm.player2.Player2APIClient
 import me.sailex.secondbrain.llm.roles.Player2ChatRole
 import me.sailex.secondbrain.util.LogUtil
 import me.sailex.secondbrain.util.PromptFormatter
 import net.minecraft.util.math.BlockPos
 import java.util.ArrayDeque
+import java.util.LinkedHashSet
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
@@ -61,18 +63,24 @@ class NPCEventHandler(
                     LogUtil.info("onEvent: $prompt")
 
                     val worldContext = contextProvider.buildContext()
-                    val zoneAwarePrompt = applyZoneSpecificBehaviour(prompt, worldContext.state().position())
+                    val activeZone = resolveActiveZoneBehavior(worldContext.state().position())
+                    val zoneAwarePrompt = applyZoneSpecificBehaviour(prompt, activeZone)
                     val formattedPrompt: String = PromptFormatter.format(zoneAwarePrompt, worldContext)
 
                     history.add(Message(formattedPrompt, Player2ChatRole.USER.toString().lowercase()))
                     val systemPrompt = Instructions.getLlmSystemPrompt(
                         config.npcName,
-                        config.getEffectiveLlmCharacter(),
+                        config.getEffectiveLlmCharacter(llmClient is OpenWebUiClient),
                         controller.commandExecutor.allCommands(),
                         config.llmType
                     )
+                    val collectionIds = if (llmClient is OpenWebUiClient) {
+                        buildCollectionIdsForRequest(activeZone)
+                    } else {
+                        emptyList()
+                    }
                     val llmStartNs = System.nanoTime()
-                    val response = llmClient.chat(history.buildMessagesForApi(systemPrompt))
+                    val response = llmClient.chat(history.buildMessagesForApi(systemPrompt), collectionIds)
                     val llmCallMs = millisSince(llmStartNs)
                     logLlmLatencyDiagnostic(llmCallMs)
                     history.add(response)
@@ -174,11 +182,17 @@ class NPCEventHandler(
         return "LLM request failed: provider returned a non-2xx response with an empty error body. Check base URL, model, and API key."
     }
 
-    private fun applyZoneSpecificBehaviour(prompt: String, position: BlockPos): String {
-        val matchingZone = config.zoneBehaviors
-            .filter { it.instructions.isNotBlank() && it.contains(position) }
+    private fun resolveActiveZoneBehavior(position: BlockPos): NPCConfig.ZoneBehavior? {
+        return config.zoneBehaviors
+            .filter { it.contains(position) && (it.instructions.isNotBlank() || it.hasCollectionId()) }
             .maxByOrNull { it.priority }
-            ?: return prompt
+    }
+
+    private fun applyZoneSpecificBehaviour(prompt: String, activeZone: NPCConfig.ZoneBehavior?): String {
+        val matchingZone = activeZone ?: return prompt
+        if (matchingZone.hasCollectionId()) {
+            return prompt
+        }
 
         return """
             $prompt
@@ -186,6 +200,21 @@ class NPCEventHandler(
             Additional zone instructions (zone: ${matchingZone.name}, priority: ${matchingZone.priority}):
             ${matchingZone.instructions}
         """.trimIndent()
+    }
+
+    private fun buildCollectionIdsForRequest(activeZone: NPCConfig.ZoneBehavior?): List<String> {
+        val resolved = LinkedHashSet<String>()
+        config.unlockedMemoryCollectionIds
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .forEach(resolved::add)
+
+        val zoneCollectionId = activeZone?.collectionId?.trim().orEmpty()
+        if (zoneCollectionId.isNotBlank()) {
+            resolved.add(zoneCollectionId)
+        }
+
+        return resolved.toList()
     }
 
     private fun trackCommandErrorLoopPressure(prompt: String) {

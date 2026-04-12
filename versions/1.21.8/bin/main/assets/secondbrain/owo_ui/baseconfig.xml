@@ -8,83 +8,146 @@
 
                         <flow-layout direction="vertical">
                             <children>
+                                <scroll direction="vertical">
+                                    <flow-layout direction="vertical">
+                                        <children>
 
-                                <flow-layout direction="vertical">
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="llmTimeout-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <discrete-slider id="llmTimeout" min="1" max="60">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fill">7</vertical>
+                                                        </sizing>
+                                                    </discrete-slider>
+                                                </children>
+                                            </flow-layout>
+
+
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="chunkRadius-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <discrete-slider id="chunkRadius" min="1" max="7">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fill">7</vertical>
+                                                        </sizing>
+                                                    </discrete-slider>
+                                                </children>
+                                            </flow-layout>
+
+
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="verticalScanRange-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <discrete-slider id="verticalScanRange" min="4" max="16">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fill">7</vertical>
+                                                        </sizing>
+                                                    </discrete-slider>
+                                                </children>
+                                            </flow-layout>
+
+
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="cacheExpiryTime-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <discrete-slider id="cacheExpiryTime" min="20" max="120">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fill">7</vertical>
+                                                        </sizing>
+                                                    </discrete-slider>
+                                                </children>
+                                            </flow-layout>
+
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="verbose-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <checkbox id="verbose">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fill">7</vertical>
+                                                        </sizing>
+                                                    </checkbox>
+                                                </children>
+                                            </flow-layout>
+
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="ollamaUrl-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <text-area id="ollamaUrl">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fixed">20</vertical>
+                                                        </sizing>
+                                                    </text-area>
+                                                </children>
+                                            </flow-layout>
+
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="openaiBaseUrl-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <text-area id="openaiBaseUrl">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fixed">20</vertical>
+                                                        </sizing>
+                                                    </text-area>
+                                                </children>
+                                            </flow-layout>
+
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="openaiApiKey-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <text-area id="openaiApiKey">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fixed">20</vertical>
+                                                        </sizing>
+                                                    </text-area>
+                                                </children>
+                                            </flow-layout>
+                                        </children>
+
+                                        <gap>9</gap>
+                                    </flow-layout>
+
+                                    <sizing>
+                                        <vertical method="fixed">180</vertical>
+                                    </sizing>
+                                </scroll>
+
+                                <flow-layout direction="horizontal">
                                     <children>
-                                        <label id="llmTimeout-label">
-                                            <shadow>true</shadow>
-                                        </label>
-                                        <discrete-slider id="llmTimeout" min="1" max="60">
-                                            <sizing>
-                                                <horizontal method="fill">25</horizontal>
-                                                <vertical method="fill">7</vertical>
-                                            </sizing>
-                                        </discrete-slider>
+                                        <button id="cancel">
+                                            <text>Cancel</text>
+                                        </button>
+                                        <button id="save">
+                                            <text>Save</text>
+                                        </button>
                                     </children>
+
+                                    <gap>6</gap>
                                 </flow-layout>
-
-
-                                <flow-layout direction="vertical">
-                                    <children>
-                                        <label id="chunkRadius-label">
-                                            <shadow>true</shadow>
-                                        </label>
-                                        <discrete-slider id="chunkRadius" min="1" max="7">
-                                            <sizing>
-                                                <horizontal method="fill">25</horizontal>
-                                                <vertical method="fill">7</vertical>
-                                            </sizing>
-                                        </discrete-slider>
-                                    </children>
-                                </flow-layout>
-
-
-                                <flow-layout direction="vertical">
-                                    <children>
-                                        <label id="verticalScanRange-label">
-                                            <shadow>true</shadow>
-                                        </label>
-                                        <discrete-slider id="verticalScanRange" min="4" max="16">
-                                            <sizing>
-                                                <horizontal method="fill">25</horizontal>
-                                                <vertical method="fill">7</vertical>
-                                            </sizing>
-                                        </discrete-slider>
-                                    </children>
-                                </flow-layout>
-
-
-                                <flow-layout direction="vertical">
-                                    <children>
-                                        <label id="cacheExpiryTime-label">
-                                            <shadow>true</shadow>
-                                        </label>
-                                        <discrete-slider id="cacheExpiryTime" min="20" max="120">
-                                            <sizing>
-                                                <horizontal method="fill">25</horizontal>
-                                                <vertical method="fill">7</vertical>
-                                            </sizing>
-                                        </discrete-slider>
-                                    </children>
-                                </flow-layout>
-
-                                <flow-layout direction="vertical">
-                                    <children>
-                                        <label id="verbose-label">
-                                            <shadow>true</shadow>
-                                        </label>
-                                        <checkbox id="verbose">
-                                            <sizing>
-                                                <horizontal method="fill">25</horizontal>
-                                                <vertical method="fill">7</vertical>
-                                            </sizing>
-                                        </checkbox>
-                                    </children>
-                                </flow-layout>
-
-                                <button id="save">
-                                    <text>Save</text>
-                                </button>
 
                             </children>
 

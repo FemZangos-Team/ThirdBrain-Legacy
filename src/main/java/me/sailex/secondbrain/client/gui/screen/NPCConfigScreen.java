@@ -138,6 +138,7 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
 
         switch (config.getLlmType()) {
             case OLLAMA -> {}
+            case OPENWEBUI -> {}
             case PLAYER2 -> {
                 llmInfo.child(buildUseTtsCheckbox());
             }
@@ -203,6 +204,15 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
                         drawLLMModelInput(panel);
                         drawLlmInfo(panel);
                     });
+            llmTypeDropDown.button(
+                    Text.of((config.getLlmType() == LLMType.OPENWEBUI ? "[X] " : "[ ] ") + LLMType.OPENWEBUI),
+                    button -> {
+                        config.setLlmType(LLMType.OPENWEBUI);
+                        applyLastUsedDefaults(LLMType.OPENWEBUI);
+                        drawLLMTypeDropDown(panel);
+                        drawLLMModelInput(panel);
+                        drawLlmInfo(panel);
+                    });
         }
     }
 
@@ -211,7 +221,7 @@ public class NPCConfigScreen extends ConfigScreen<NPCConfig> {
         llmModelContainer.clearChildren();
         llmModelContainer.child(label(Text.of(LLM_MODEL_LABEL)).shadow(true));
         switch (config.getLlmType()) {
-            case OLLAMA, OPENAI -> {
+            case OLLAMA, OPENAI, OPENWEBUI -> {
                 TextAreaComponent llmModel = textArea(Sizing.fill(HALF_INPUT_WIDTH), Sizing.fill(SINGLE_LINE_INPUT_HEIGHT))
                         .text(config.getLlmModel());
                 llmModel.onChanged().subscribe(config::setLlmModel);

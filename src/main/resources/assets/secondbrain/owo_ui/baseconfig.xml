@@ -126,6 +126,34 @@
                                                     </text-area>
                                                 </children>
                                             </flow-layout>
+
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="openwebuiBaseUrl-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <text-area id="openwebuiBaseUrl">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fixed">20</vertical>
+                                                        </sizing>
+                                                    </text-area>
+                                                </children>
+                                            </flow-layout>
+
+                                            <flow-layout direction="vertical">
+                                                <children>
+                                                    <label id="openwebuiApiKey-label">
+                                                        <shadow>true</shadow>
+                                                    </label>
+                                                    <text-area id="openwebuiApiKey">
+                                                        <sizing>
+                                                            <horizontal method="fill">25</horizontal>
+                                                            <vertical method="fixed">20</vertical>
+                                                        </sizing>
+                                                    </text-area>
+                                                </children>
+                                            </flow-layout>
                                         </children>
 
                                         <gap>9</gap>

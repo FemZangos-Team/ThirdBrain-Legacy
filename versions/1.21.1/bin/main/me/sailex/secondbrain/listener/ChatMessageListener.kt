@@ -7,17 +7,14 @@ import java.util.UUID
 class ChatMessageListener(
     npcs: Map<UUID, NPC>
 ) : AEventListener(npcs) {
-    companion object {
-        private const val CHAT_HEARING_RANGE_SQUARED = 16.0 // 4 blocks
-    }
-
     override fun register() {
         ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
             npcs.forEach { npcEntry ->
                 if (npcEntry.value.entity.uuid == sender.uuid) {
                     return@forEach
                 }
-                if (npcEntry.value.entity.squaredDistanceTo(sender) > CHAT_HEARING_RANGE_SQUARED) {
+                val hearingRangeBlocks = npcEntry.value.config.conversationRange.toDouble()
+                if (npcEntry.value.entity.squaredDistanceTo(sender) > hearingRangeBlocks * hearingRangeBlocks) {
                     return@forEach
                 }
                 val chatMessage =

@@ -16,7 +16,7 @@
                                     </margins>
                                 </texture>
                                 <label>
-                                    <text>SecondBrain</text>
+                                    <text>ThirdBrain</text>
                                     <shadow>true</shadow>
                                     <margins>
                                         <left>1</left>
@@ -51,10 +51,10 @@
                                 <children>
                                 </children>
                             </flow-layout>
-                            <sizing>
-                                <vertical method="fill">25</vertical>
-                            </sizing>
-                        </scroll>
+                                    <sizing>
+                                        <vertical method="fixed">180</vertical>
+                                    </sizing>
+                                </scroll>
 
                     </children>
 

@@ -37,6 +37,16 @@ class NPCService(
     fun init() {
         executorService = Executors.newSingleThreadExecutor()
         registerDeathListener()
+        resetAllNpcsToInactive()
+    }
+
+    private fun resetAllNpcsToInactive() {
+        configProvider.getNpcConfigs().forEach { config ->
+            if (config.isActive) {
+                config.isActive = false
+                configProvider.saveNpcConfig(config)
+            }
+        }
     }
 
     @Synchronized
@@ -58,17 +68,33 @@ class NPCService(
 
             val config = updateConfig(newConfig)
 
-            NPCSpawner.spawn(config, server, spawnPos) { npcEntity ->
-                config.uuid = npcEntity.uuid
-                val npc = factory.createNpc(npcEntity, config, resourceProvider.getLoadedConversation(config.uuid))
-                npc.controller.owner = owner
-                uuidToNpc[config.uuid] = npc
+            val llmClient = runCatching { factory.initLLMClient(config) }
+                .onFailure { e ->
+                    LogUtil.errorInChat("Failed to connect to LLM service for NPC '$name': ${e.message}")
+                    LogUtil.error("LLM service unreachable for NPC '$name'", e)
+                    markNpcInactive(config.uuid)
+                }
+                .getOrNull()
 
-                LogUtil.infoInChat(("Added NPC with name: $name"))
-                npc.eventHandler.onEvent(Instructions.INITIAL_PROMPT)
+            if (llmClient != null) {
+                NPCSpawner.spawn(config, server, spawnPos) { npcEntity ->
+                    config.uuid = npcEntity.uuid
+                    try {
+                        val npc = factory.createNpc(npcEntity, config, resourceProvider.getLoadedConversation(config.uuid), llmClient)
+                        npc.controller.owner = owner
+                        uuidToNpc[config.uuid] = npc
+                        LogUtil.infoInChat("Added NPC with name: $name")
+                        npc.eventHandler.onEvent(Instructions.INITIAL_PROMPT)
+                    } catch (e: Exception) {
+                        LogUtil.errorInChat("Failed to create NPC '$name': ${e.message}")
+                        LogUtil.error("NPC creation callback failed for '$name'", e)
+                        NPCSpawner.remove(config.uuid, server.playerManager)
+                        markNpcInactive(config.uuid)
+                    }
+                }
             }
         }, executorService).exceptionally {
-            LogUtil.errorInChat(it.message)
+            LogUtil.errorInChat(it.cause?.message ?: it.message)
             LogUtil.error(it)
             null
         }
@@ -156,24 +182,44 @@ class NPCService(
 	}
 
     fun removeNpc(uuid: UUID, playerManager: PlayerManager) {
-        val npcToRemove = uuidToNpc[uuid]
-        if (npcToRemove != null) {
-            npcToRemove.controller.stop()
-            npcToRemove.llmClient.stopService()
-            npcToRemove.eventHandler.stopService()
-            npcToRemove.contextProvider.chunkManager.stopService()
-            resourceProvider.addConversations(uuid,npcToRemove.history.latestConversations)
-            uuidToNpc.remove(uuid)
+        val configOpt = configProvider.getNpcConfig(uuid)
+        val configName = if (configOpt.isPresent) configOpt.get().npcName else uuid.toString()
+        val npcToRemove = uuidToNpc.remove(uuid)
 
-            NPCSpawner.remove(npcToRemove.entity.uuid, playerManager)
+        if (npcToRemove == null) {
+            safely("remove entity for '$configName'") { NPCSpawner.remove(uuid, playerManager) }
+            markNpcInactive(uuid)
+            LogUtil.infoInChat("NPC '$configName' was not spawned. Marked as despawned.")
+            return
+        }
 
-            val config = configProvider.getNpcConfig(uuid)
-            if (config.isPresent) {
-                config.get().isActive = false
-                LogUtil.infoInChat("Removed NPC with name ${config.get().npcName}")
-            } else {
-                LogUtil.infoInChat("Removed NPC with uuid $uuid")
-            }
+        safely("stop controller for '$configName'") { npcToRemove.controller.stop() }
+        safely("stop llm client for '$configName'") { npcToRemove.llmClient.stopService() }
+        safely("stop event handler for '$configName'") { npcToRemove.eventHandler.stopService() }
+        safely("stop chunk manager for '$configName'") { npcToRemove.contextProvider.chunkManager.stopService() }
+        safely("persist latest conversations for '$configName'") {
+            resourceProvider.addConversations(uuid, npcToRemove.history.latestConversations)
+        }
+        safely("remove entity for '$configName'") { NPCSpawner.remove(npcToRemove.entity.uuid, playerManager) }
+
+        markNpcInactive(uuid)
+        LogUtil.infoInChat("Removed NPC with name $configName")
+    }
+
+    private fun markNpcInactive(uuid: UUID) {
+        val config = configProvider.getNpcConfig(uuid)
+        if (config.isPresent) {
+            val npcConfig = config.get()
+            npcConfig.isActive = false
+            configProvider.saveNpcConfig(npcConfig)
+        }
+    }
+
+    private fun safely(action: String, cleanupAction: () -> Unit) {
+        try {
+            cleanupAction()
+        } catch (e: Exception) {
+            LogUtil.error("Failed to $action during npc despawn.", e)
         }
     }
 

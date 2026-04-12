@@ -20,6 +20,7 @@ public record ConfigPacket(BaseConfig baseConfig, List<NPCConfig> npcConfigs) {
      */
     public void hideSecret() {
         baseConfig.setOpenaiApiKey("");
+        baseConfig.setOpenwebuiApiKey("");
     }
 
     @Override

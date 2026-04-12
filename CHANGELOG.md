@@ -8,6 +8,7 @@ All notable changes to this project are documented in this release.
 
 - Memory fragments can be re locked
 - Memory fragments can be created locked or unlocked
+- Integrated OpenWebUI to allow usage with knowledge bases
 
 ### 🐛 Bug Fixes
 

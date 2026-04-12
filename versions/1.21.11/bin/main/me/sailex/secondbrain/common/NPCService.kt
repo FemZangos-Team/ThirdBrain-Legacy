@@ -30,10 +30,24 @@ class NPCService(
     }
 
     private lateinit var executorService: ExecutorService
+    @Volatile
+    private var deathListenerRegistered = false
     val uuidToNpc = ConcurrentHashMap<UUID, NPC>()
 
     fun init() {
         executorService = Executors.newSingleThreadExecutor()
+        registerDeathListener()
+    }
+
+    @Synchronized
+    private fun registerDeathListener() {
+        if (deathListenerRegistered) {
+            return
+        }
+        NPCEvents.ON_DEATH.register {
+            removeNpc(it.uuid, EntityVer.getWorld(it).server!!.playerManager)
+        }
+        deathListenerRegistered = true
     }
 
     fun createNpc(newConfig: NPCConfig, server: MinecraftServer, spawnPos: BlockPos?, owner: PlayerEntity?) {
@@ -46,16 +60,12 @@ class NPCService(
 
             NPCSpawner.spawn(config, server, spawnPos) { npcEntity ->
                 config.uuid = npcEntity.uuid
-                val npc = factory.createNpc(npcEntity, config, resourceProvider.loadedConversations[config.uuid])
+                val npc = factory.createNpc(npcEntity, config, resourceProvider.getLoadedConversation(config.uuid))
                 npc.controller.owner = owner
                 uuidToNpc[config.uuid] = npc
 
                 LogUtil.infoInChat(("Added NPC with name: $name"))
                 npc.eventHandler.onEvent(Instructions.INITIAL_PROMPT)
-            }
-
-            NPCEvents.ON_DEATH.register {
-                removeNpc(it.uuid, EntityVer.getWorld(it).server!!.playerManager)
             }
         }, executorService).exceptionally {
             LogUtil.errorInChat(it.message)
@@ -64,7 +74,17 @@ class NPCService(
         }
     }
 
-fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
+	fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus =
+		setMemoryUnlockedForNpc(npcName, memoryId, true)
+
+	fun lockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus =
+		setMemoryUnlockedForNpc(npcName, memoryId, false)
+
+	private fun setMemoryUnlockedForNpc(
+		npcName: String,
+		memoryId: String,
+		unlocked: Boolean
+	): MemoryUnlockStatus {
 		val configResult = configProvider.getNpcConfigByName(npcName)
 		if (configResult.isEmpty) {
 			return MemoryUnlockStatus.NPC_NOT_FOUND
@@ -75,12 +95,13 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
 		if (memoryOpt.isEmpty) {
 			return MemoryUnlockStatus.MEMORY_NOT_FOUND
 		}
+
 		val memory = memoryOpt.get()
-		if (memory.isUnlocked) {
-			return MemoryUnlockStatus.ALREADY_UNLOCKED
+		if (memory.isUnlocked == unlocked) {
+			return MemoryUnlockStatus.NO_CHANGE
 		}
 
-		memory.isUnlocked = true
+		memory.setUnlocked(unlocked)
 		configProvider.saveNpcConfig(config)
 		return MemoryUnlockStatus.SUCCESS
 	}
@@ -88,6 +109,16 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
 	fun createMemoryForNpc(
 		npcName: String,
 		memoryPrompt: String
+	): MemoryCreateResult = createMemoryForNpc(
+		npcName,
+		memoryPrompt,
+		true
+	)
+
+	fun createMemoryForNpc(
+		npcName: String,
+		memoryPrompt: String,
+		isUnlocked: Boolean
 	): MemoryCreateResult {
 		val normalizedPrompt = memoryPrompt.trim()
 		if (normalizedPrompt.isBlank()) {
@@ -109,7 +140,7 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
 		val newMemory = NPCConfig.MemoryFragment(
 				generatedMemoryId,
 				normalizedPrompt,
-				true
+				isUnlocked
 		)
 		config.getMemoryFragments().add(newMemory)
 		configProvider.saveNpcConfig(config)
@@ -147,7 +178,7 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
     }
 
     fun deleteNpc(uuid: UUID, playerManager: PlayerManager) {
-        resourceProvider.loadedConversations.remove(uuid)
+        resourceProvider.removeLoadedConversation(uuid)
         resourceProvider.conversationRepository.deleteByUuid(uuid)
         removeNpc(uuid, playerManager)
         configProvider.deleteNpcConfig(uuid)
@@ -194,9 +225,9 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
 
 	enum class MemoryUnlockStatus {
 		SUCCESS,
+		NO_CHANGE,
 		NPC_NOT_FOUND,
-		MEMORY_NOT_FOUND,
-		ALREADY_UNLOCKED
+		MEMORY_NOT_FOUND
 	}
 
 	enum class MemoryCreateStatus {

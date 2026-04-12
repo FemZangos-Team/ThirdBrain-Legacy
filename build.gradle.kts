@@ -59,8 +59,6 @@ dependencies {
     include(modImplementation("org.xerial:sqlite-jdbc:3.46.1.3")!!)
     include(modRuntimeOnly("dev_babbaj:nether-pathfinder:1.4.1")!!)
 
-    include(modImplementation("io.github.ollama4j:ollama4j:1.0.97")!!)
-
     //needed deps for openai communication
     include(modRuntimeOnly("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2")!!)
     include(modRuntimeOnly("com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.18.2")!!)
@@ -77,11 +75,6 @@ dependencies {
     include(modRuntimeOnly("io.github.sashirestela:slimvalidator:1.2.2")!!)
     include(modRuntimeOnly("io.github.sashirestela:cleverclient:1.4.4")!!)
     include(modImplementation("io.github.sashirestela:simple-openai:3.9.0")!!)
-    include(modImplementation("com.openai:openai-java-client-okhttp:4.22.0")!!)
-    include(modImplementation("com.openai:openai-java-core:4.22.0")!!)
-    include(modRuntimeOnly("com.squareup.okhttp3:okhttp:4.12.0")!!)
-    include(modRuntimeOnly("com.squareup.okhttp3:logging-interceptor:4.12.0")!!)
-    include(modRuntimeOnly("com.squareup.okio:okio-jvm:3.6.0")!!)
     include(modRuntimeOnly("org.apache.httpcomponents.core5:httpcore5:5.2.4")!!)
     include(modRuntimeOnly("org.apache.httpcomponents.client5:httpclient5:5.3.1")!!)
 

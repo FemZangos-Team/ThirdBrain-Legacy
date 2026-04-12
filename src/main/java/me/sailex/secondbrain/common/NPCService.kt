@@ -156,24 +156,43 @@ class NPCService(
 	}
 
     fun removeNpc(uuid: UUID, playerManager: PlayerManager) {
-        val npcToRemove = uuidToNpc[uuid]
-        if (npcToRemove != null) {
-            npcToRemove.controller.stop()
-            npcToRemove.llmClient.stopService()
-            npcToRemove.eventHandler.stopService()
-            npcToRemove.contextProvider.chunkManager.stopService()
-            resourceProvider.addConversations(uuid,npcToRemove.history.latestConversations)
-            uuidToNpc.remove(uuid)
+        val configOpt = configProvider.getNpcConfig(uuid)
+        val configName = if (configOpt.isPresent) configOpt.get().npcName else uuid.toString()
+        val npcToRemove = uuidToNpc.remove(uuid)
 
-            NPCSpawner.remove(npcToRemove.entity.uuid, playerManager)
+        if (npcToRemove == null) {
+            markNpcInactive(uuid)
+            LogUtil.infoInChat("NPC '$configName' was not spawned. Marked as despawned.")
+            return
+        }
 
-            val config = configProvider.getNpcConfig(uuid)
-            if (config.isPresent) {
-                config.get().isActive = false
-                LogUtil.infoInChat("Removed NPC with name ${config.get().npcName}")
-            } else {
-                LogUtil.infoInChat("Removed NPC with uuid $uuid")
-            }
+        safely("stop controller for '$configName'") { npcToRemove.controller.stop() }
+        safely("stop llm client for '$configName'") { npcToRemove.llmClient.stopService() }
+        safely("stop event handler for '$configName'") { npcToRemove.eventHandler.stopService() }
+        safely("stop chunk manager for '$configName'") { npcToRemove.contextProvider.chunkManager.stopService() }
+        safely("persist latest conversations for '$configName'") {
+            resourceProvider.addConversations(uuid, npcToRemove.history.latestConversations)
+        }
+        safely("remove entity for '$configName'") { NPCSpawner.remove(npcToRemove.entity.uuid, playerManager) }
+
+        markNpcInactive(uuid)
+        LogUtil.infoInChat("Removed NPC with name $configName")
+    }
+
+    private fun markNpcInactive(uuid: UUID) {
+        val config = configProvider.getNpcConfig(uuid)
+        if (config.isPresent) {
+            val npcConfig = config.get()
+            npcConfig.isActive = false
+            configProvider.saveNpcConfig(npcConfig)
+        }
+    }
+
+    private fun safely(action: String, cleanupAction: () -> Unit) {
+        try {
+            cleanupAction()
+        } catch (e: Exception) {
+            LogUtil.error("Failed to $action during npc despawn.", e)
         }
     }
 

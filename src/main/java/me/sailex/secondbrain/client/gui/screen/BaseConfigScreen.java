@@ -25,6 +25,8 @@ public class BaseConfigScreen extends ConfigScreen<BaseConfig> {
     private static final String OLLAMA_URL_LABEL = "Ollama URL";
     private static final String OPENAI_BASE_URL_LABEL = "OpenAI Compatible URL";
     private static final String OPENAI_API_KEY_LABEL = "OpenAI API Key";
+    private static final String OPENWEBUI_BASE_URL_LABEL = "OpenWebUI URL";
+    private static final String OPENWEBUI_API_KEY_LABEL = "OpenWebUI API Key";
 
     public BaseConfigScreen(
         ClientNetworkManager networkManager,
@@ -84,6 +86,18 @@ public class BaseConfigScreen extends ConfigScreen<BaseConfig> {
                 .text(config.getOpenaiApiKey())
                 .onChanged()
                 .subscribe(config::setOpenaiApiKey);
+
+        panel.childById(LabelComponent.class, "openwebuiBaseUrl-label").text(Text.of(OPENWEBUI_BASE_URL_LABEL));
+        panel.childById(TextAreaComponent.class, "openwebuiBaseUrl")
+                .text(config.getOpenwebuiBaseUrl())
+                .onChanged()
+                .subscribe(config::setOpenwebuiBaseUrl);
+
+        panel.childById(LabelComponent.class, "openwebuiApiKey-label").text(Text.of(OPENWEBUI_API_KEY_LABEL));
+        panel.childById(TextAreaComponent.class, "openwebuiApiKey")
+                .text(config.getOpenwebuiApiKey())
+                .onChanged()
+                .subscribe(config::setOpenwebuiApiKey);
 
         onPressSaveButton(panel, button -> {
             networkManager.sendPacket(new UpdateBaseConfigPacket(config));
