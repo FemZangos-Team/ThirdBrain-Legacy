@@ -1,6 +1,7 @@
 package me.sailex.secondbrain.common
 
 import me.sailex.altoclef.multiversion.EntityVer
+import me.sailex.secondbrain.llm.LLMClient
 import me.sailex.secondbrain.auth.UsernameValidator
 import me.sailex.secondbrain.callback.NPCEvents
 import me.sailex.secondbrain.config.ConfigProvider
@@ -36,7 +37,15 @@ class NPCService(
 
     fun init() {
         executorService = Executors.newSingleThreadExecutor()
+        resetAllNpcsToInactive()
         registerDeathListener()
+    }
+
+    private fun resetAllNpcsToInactive() {
+        configProvider.getNpcConfigs().forEach { config ->
+            config.isActive = false
+            configProvider.saveNpcConfig(config)
+        }
     }
 
     @Synchronized
@@ -58,14 +67,29 @@ class NPCService(
 
             val config = updateConfig(newConfig)
 
+            val llmClient: LLMClient = try {
+                factory.initLLMClient(config)
+            } catch (e: Exception) {
+                LogUtil.errorInChat("Failed to reach LLM for NPC '$name': ${e.message}")
+                LogUtil.error(e)
+                markNpcInactive(config.uuid)
+                return@runAsync
+            }
+
             NPCSpawner.spawn(config, server, spawnPos) { npcEntity ->
                 config.uuid = npcEntity.uuid
-                val npc = factory.createNpc(npcEntity, config, resourceProvider.getLoadedConversation(config.uuid))
-                npc.controller.owner = owner
-                uuidToNpc[config.uuid] = npc
-
-                LogUtil.infoInChat(("Added NPC with name: $name"))
-                npc.eventHandler.onEvent(Instructions.INITIAL_PROMPT)
+                try {
+                    val npc = factory.createNpc(npcEntity, config, resourceProvider.getLoadedConversation(config.uuid), llmClient)
+                    npc.controller.owner = owner
+                    uuidToNpc[config.uuid] = npc
+                    LogUtil.infoInChat(("Added NPC with name: $name"))
+                    npc.eventHandler.onEvent(Instructions.INITIAL_PROMPT)
+                } catch (e: Exception) {
+                    LogUtil.errorInChat("Failed to create NPC '$name' after spawn: ${e.message}")
+                    LogUtil.error(e)
+                    NPCSpawner.remove(npcEntity.uuid, server.playerManager)
+                    markNpcInactive(config.uuid)
+                }
             }
         }, executorService).exceptionally {
             LogUtil.errorInChat(it.message)
@@ -161,6 +185,7 @@ class NPCService(
         val npcToRemove = uuidToNpc.remove(uuid)
 
         if (npcToRemove == null) {
+            safely("remove entity for '$configName'") { NPCSpawner.remove(uuid, playerManager) }
             markNpcInactive(uuid)
             LogUtil.infoInChat("NPC '$configName' was not spawned. Marked as despawned.")
             return

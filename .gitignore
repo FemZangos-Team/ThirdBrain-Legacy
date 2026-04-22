@@ -126,3 +126,8 @@ runs/
 .env
 
 server/
+
+docs/
+
+.metals/
+.settings/

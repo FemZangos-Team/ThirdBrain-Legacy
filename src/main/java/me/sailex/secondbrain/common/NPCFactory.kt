@@ -22,12 +22,10 @@ import net.minecraft.server.network.ServerPlayerEntity
 class NPCFactory(
     private val configProvider: ConfigProvider,
 ) {
-     fun createNpc(npcEntity: ServerPlayerEntity, config: NPCConfig, loadedConversation: List<Conversation>?): NPC {
+     fun createNpc(npcEntity: ServerPlayerEntity, config: NPCConfig, loadedConversation: List<Conversation>?, llmClient: LLMClient): NPC {
         val baseConfig = configProvider.baseConfig
         val conversationRange = resolveConversationRangeInBlocks(config)
         val contextProvider = ContextProvider(npcEntity, baseConfig, conversationRange)
-
-        val llmClient = initLLMClient(config)
 
         val controller = initController(npcEntity)
 
@@ -45,7 +43,7 @@ class NPCFactory(
         return AltoClefController(automatone)
     }
 
-    private fun initLLMClient(config: NPCConfig): LLMClient {
+    internal fun initLLMClient(config: NPCConfig): LLMClient {
         val baseConfig = configProvider.baseConfig
         val llmClient = when (config.llmType) {
             LLMType.OLLAMA -> OllamaClient(config.llmModel, baseConfig.ollamaUrl, baseConfig.llmTimeout, baseConfig.isVerbose)

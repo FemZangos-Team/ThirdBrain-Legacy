@@ -12,6 +12,7 @@ import me.sailex.secondbrain.client.networking.ClientNetworkManager;
 import me.sailex.secondbrain.config.BaseConfig;
 import me.sailex.secondbrain.config.NPCConfig;
 import me.sailex.secondbrain.llm.LLMType;
+import me.sailex.secondbrain.networking.packet.UpdateNpcConfigPacket;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -89,7 +90,10 @@ public class NPCZoneBehaviorScreen extends ConfigScreen<NPCConfig> {
             renderZones(zoneList);
         });
 
-        onPressSaveButton(rootComponent, button -> goBackToNpcConfig());
+        onPressSaveButton(rootComponent, button -> {
+            networkManager.sendPacket(new UpdateNpcConfigPacket(config));
+            goBackToNpcConfig();
+        });
         rootComponent.childById(ButtonComponent.class, "cancel").onPress(button -> goBackToNpcConfig());
     }
 

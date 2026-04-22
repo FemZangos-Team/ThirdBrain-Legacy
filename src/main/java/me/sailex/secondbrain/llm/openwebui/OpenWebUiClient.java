@@ -38,6 +38,7 @@ public class OpenWebUiClient implements LLMClient {
         this.normalizedBaseUrl = normalizeBaseUrl(baseUrl);
         this.requestTimeout = Duration.ofSeconds(Math.max(timeout, 1));
         this.client = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(this.requestTimeout)
                 .build();
     }
@@ -67,10 +68,12 @@ public class OpenWebUiClient implements LLMClient {
             while (root.getCause() != null) {
                 root = root.getCause();
             }
-            String safeRootMessage = "Provider returned an error. Check base URL, model, and API key.";
+            String safeRootMessage = root.getMessage();
+            if (safeRootMessage == null || safeRootMessage.isBlank()) {
+                safeRootMessage = root.getClass().getSimpleName();
+            }
             String prompt = messages.isEmpty() ? "" : messages.get(messages.size() - 1).getMessage();
-            throw new LLMServiceException("Could not generate Response for prompt: " + prompt
-                    + "\nRoot cause: " + root.getClass().getSimpleName() + ": " + safeRootMessage, e);
+            throw new LLMServiceException("OpenWebUI error at " + normalizedBaseUrl + CHAT_PATH + "\n" + root.getClass().getSimpleName() + ": " + safeRootMessage + "\nPrompt: " + truncate(prompt, 100), e);
         }
     }
 
@@ -138,13 +141,23 @@ public class OpenWebUiClient implements LLMClient {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             int status = response.statusCode();
             if (status < 200 || status >= 300) {
-                throw new LLMServiceException("OpenWebUI request failed with HTTP status " + status);
+                String body = response.body();
+                String errorMsg = "OpenWebUI request failed with HTTP " + status;
+                if (body != null && !body.isBlank()) {
+                    errorMsg += ": " + truncate(body, 500);
+                }
+                throw new LLMServiceException(errorMsg);
             }
             return response;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException(e);
         }
+    }
+
+    private static String truncate(String s, int maxLen) {
+        if (s == null) return null;
+        return s.length() > maxLen ? s.substring(0, maxLen) + "..." : s;
     }
 
     private String[] authHeaders() {

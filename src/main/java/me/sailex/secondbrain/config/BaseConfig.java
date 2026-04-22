@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 public class BaseConfig implements Configurable {
     private static final String DEFAULT_OLLAMA_URL = "http://localhost:11434/v1";
 
-    private int llmTimeout = 10;
+    private int llmTimeout = 60;
     private int contextChunkRadius = 4;
     private int contextVerticalScanRange = 8;
     private int chunkExpiryTime = 60;
