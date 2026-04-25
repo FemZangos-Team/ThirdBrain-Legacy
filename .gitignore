@@ -130,4 +130,12 @@ server/
 docs/
 
 .metals/
+
+# Eclipse IDE files
+.project
+.classpath
+.factorypath
 .settings/
+
+# Eclipse build output
+**/bin/
