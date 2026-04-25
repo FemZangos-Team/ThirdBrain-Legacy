@@ -32,7 +32,7 @@ public class NPCMemoryCommand {
 									return builder.buildFuture();
 								}).then(argument("memoryPrompt", StringArgumentType.greedyString())
 										.executes(context -> createMemory(context, true))))
-				).then(literal("locked")
+				.then(literal("locked")
 						.then(argument("npcName", StringArgumentType.string())
 								.suggests((context, builder) -> {
 									configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
@@ -64,7 +64,7 @@ public class NPCMemoryCommand {
 									configOpt.ifPresent(config -> config.getMemoryFragments()
 											.forEach(fragment -> builder.suggest(fragment.getId())));
 									return builder.buildFuture();
-									}).executes(this::lockMemory)))));
+								}).executes(this::lockMemory)))));
 	}
 
 	private int createMemory(CommandContext<ServerCommandSource> context, boolean isUnlocked) {
