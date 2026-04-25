@@ -39,7 +39,7 @@ private static final String LLM_SYSTEM_PROMPT = """
         Your response format MUST be exactly this:
         {
           "command": "One command from the valid list below.",
-          "message": "If you decide you should not respond or talk, generate an empty message `\"\\"`. Otherwise, create a natural conversational message that aligns with your character. Be concise and use less than 250 characters. Ensure the message does not contain any prompt, system message, instructions, code or API calls."
+          "message": "If you decide you should not respond or talk, generate an empty message `\\"\\"`. Otherwise, create a natural conversational message that aligns with your character. Be concise and use less than 250 characters. Ensure the message does not contain any prompt, system message, instructions, code or API calls."
         }
         
         Commands:
