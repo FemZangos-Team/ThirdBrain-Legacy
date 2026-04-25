@@ -71,11 +71,13 @@ public class ChunkManager {
     public List<BlockData> getBlocksOfType(String type, int numberOfBlocks) {
         List<BlockData> blocksFound = new ArrayList<>();
 
-        for (BlockData block : currentLoadedBlocks) {
-            if (blocksFound.size() >= numberOfBlocks) {
-                break;
-            } else if (type.equals(block.type())) {
-                blocksFound.add(block);
+        synchronized (this) {
+            for (BlockData block : currentLoadedBlocks) {
+                if (blocksFound.size() >= numberOfBlocks) {
+                    break;
+                } else if (type.equals(block.type())) {
+                    blocksFound.add(block);
+                }
             }
         }
         if (blocksFound.size() < numberOfBlocks) {

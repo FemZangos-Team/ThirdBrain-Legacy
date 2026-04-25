@@ -93,7 +93,7 @@ public class ConfigProvider {
         configsToRemove.forEach(config -> delete(config.getConfigName()));
     }
 
-    public synchronized void deleteByType(LLMType llmType) {
+    public synchronized List<UUID> deleteByType(LLMType llmType) {
         List<NPCConfig> configsToRemove = new ArrayList<>();
         npcConfigs.forEach(config -> {
             if (config != null && config.getLlmType() == llmType) {
@@ -102,6 +102,9 @@ public class ConfigProvider {
         });
         npcConfigs.removeAll(configsToRemove);
         configsToRemove.forEach(config -> delete(config.getConfigName()));
+        return configsToRemove.stream()
+                .map(NPCConfig::getUuid)
+                .toList();
     }
 
     public synchronized NPCConfig addNpcConfig(NPCConfig npcConfig) {

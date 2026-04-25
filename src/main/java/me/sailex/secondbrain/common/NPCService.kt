@@ -11,6 +11,7 @@ import me.sailex.secondbrain.database.resources.ResourceProvider
 import me.sailex.secondbrain.exception.NPCCreationException
 import me.sailex.secondbrain.model.NPC
 import me.sailex.secondbrain.util.LogUtil
+import me.sailex.secondbrain.llm.LLMType
 import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.PlayerManager
@@ -226,6 +227,13 @@ class NPCService(
         resourceProvider.conversationRepository.deleteByUuid(uuid)
         removeNpc(uuid, playerManager)
         configProvider.deleteNpcConfig(uuid)
+    }
+
+    fun deleteStoredNpcsByType(llmType: LLMType) {
+        configProvider.deleteByType(llmType).forEach { uuid ->
+            resourceProvider.removeLoadedConversation(uuid)
+            resourceProvider.conversationRepository.deleteByUuid(uuid)
+        }
     }
 
     fun shutdownNPCs(server: MinecraftServer) {

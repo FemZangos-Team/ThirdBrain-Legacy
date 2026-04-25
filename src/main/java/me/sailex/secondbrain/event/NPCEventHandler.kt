@@ -44,6 +44,7 @@ class NPCEventHandler(
     private val commandErrorPromptTimestamps = ArrayDeque<Long>()
     private val diagRateLimitMs = 5000L
     private val commandLoopWindowMs = 10_000L
+    private val maxCommandErrorPromptsPerWindow = 3
 
     /**
      * Processes an event asynchronously by allowing call actions from llm using the specified prompt.
@@ -54,7 +55,14 @@ class NPCEventHandler(
     override fun onEvent(prompt: String) {
         val queueDepthBeforeEnqueue = executorService.queue.size
         logQueueDepthDiagnostic(queueDepthBeforeEnqueue)
-        trackCommandErrorLoopPressure(prompt)
+        if (shouldDropCommandErrorPrompt(prompt)) {
+            LogUtil.warnRateLimited(
+                "event.command_loop_dropped.${config.npcName}",
+                "[SB-DIAG] area=command-loop npc=${config.npcName} thread=${Thread.currentThread().name} metric=dropped_failed_command_retry value=1",
+                diagRateLimitMs
+            )
+            return
+        }
 
         try {
             executorService.execute task@{
@@ -217,10 +225,9 @@ class NPCEventHandler(
         return resolved.toList()
     }
 
-    private fun trackCommandErrorLoopPressure(prompt: String) {
-        if (!LogUtil.isVerboseEnabled()) return
+    private fun shouldDropCommandErrorPrompt(prompt: String): Boolean {
         val trimmedPrompt = prompt.trimStart()
-        if (!trimmedPrompt.startsWith("Command ") || !trimmedPrompt.contains(" failed. Error content:")) return
+        if (!trimmedPrompt.startsWith("Command ") || !trimmedPrompt.contains(" failed. Error content:")) return false
 
         val now = System.currentTimeMillis()
         val failuresInWindow: Int
@@ -237,13 +244,14 @@ class NPCEventHandler(
             failuresInWindow = commandErrorPromptTimestamps.size
         }
 
-        if (failuresInWindow > 3) {
+        if (failuresInWindow > maxCommandErrorPromptsPerWindow) {
             LogUtil.warnRateLimited(
                 "event.command_loop_pressure.${config.npcName}",
                 "[SB-DIAG] area=command-loop npc=${config.npcName} thread=${Thread.currentThread().name} metric=failed_command_retries_10s value=$failuresInWindow",
                 diagRateLimitMs
             )
         }
+        return failuresInWindow > maxCommandErrorPromptsPerWindow
     }
 
     private fun logQueueDepthDiagnostic(queueDepthBeforeEnqueue: Int) {
