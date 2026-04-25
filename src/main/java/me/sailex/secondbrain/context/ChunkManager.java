@@ -90,7 +90,6 @@ public class ChunkManager {
      */
     private void updateNearbyBlocks() {
         Map<String, BlockData> nearestBlocks = new HashMap<>();
-        this.nearbyBlocks.clear();
 
         for (BlockData block : currentLoadedBlocks) {
             String blockType = block.type();
