@@ -26,45 +26,45 @@ public class NPCMemoryCommand {
 			.requires(/*? >=1.21.11 {*/ source -> net.minecraft.server.command.CommandManager.MODERATORS_CHECK.allows(source.getPermissions()) /*?} else {*/ source -> source.hasPermissionLevel(2) /*?}*/)
 			.then(literal("create")
 				.then(literal("unlocked")
-						.then(argument("npcName", StringArgumentType.string())
-								.suggests((context, builder) -> {
-									configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
-									return builder.buildFuture();
-								}).then(argument("memoryPrompt", StringArgumentType.greedyString())
-										.executes(context -> createMemory(context, true))))
+					.then(argument("npcName", StringArgumentType.string())
+						.suggests((context, builder) -> {
+							configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
+							return builder.buildFuture();
+						}).then(argument("memoryPrompt", StringArgumentType.greedyString())
+							.executes(context -> createMemory(context, true)))))
 				.then(literal("locked")
-						.then(argument("npcName", StringArgumentType.string())
-								.suggests((context, builder) -> {
-									configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
-									return builder.buildFuture();
-								}).then(argument("memoryPrompt", StringArgumentType.greedyString())
-										.executes(context -> createMemory(context, false)))))
+					.then(argument("npcName", StringArgumentType.string())
+						.suggests((context, builder) -> {
+							configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
+							return builder.buildFuture();
+						}).then(argument("memoryPrompt", StringArgumentType.greedyString())
+							.executes(context -> createMemory(context, false))))))
 			.then(literal("unlock")
 				.then(argument("npcName", StringArgumentType.string())
+					.suggests((context, builder) -> {
+						configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
+						return builder.buildFuture();
+					}).then(argument("memoryId", StringArgumentType.string())
 						.suggests((context, builder) -> {
-							configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
+							String npcName = StringArgumentType.getString(context, "npcName");
+							Optional<NPCConfig> configOpt = configProvider.getNpcConfigByName(npcName);
+							configOpt.ifPresent(config -> config.getMemoryFragments()
+								.forEach(fragment -> builder.suggest(fragment.getId())));
 							return builder.buildFuture();
-						}).then(argument("memoryId", StringArgumentType.string())
-								.suggests((context, builder) -> {
-									String npcName = StringArgumentType.getString(context, "npcName");
-									Optional<NPCConfig> configOpt = configProvider.getNpcConfigByName(npcName);
-									configOpt.ifPresent(config -> config.getMemoryFragments()
-											.forEach(fragment -> builder.suggest(fragment.getId())));
-									return builder.buildFuture();
-								}).executes(this::unlockMemory))))
+						}).executes(this::unlockMemory))))
 			.then(literal("lock")
 				.then(argument("npcName", StringArgumentType.string())
+					.suggests((context, builder) -> {
+						configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
+						return builder.buildFuture();
+					}).then(argument("memoryId", StringArgumentType.string())
 						.suggests((context, builder) -> {
-							configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
+							String npcName = StringArgumentType.getString(context, "npcName");
+							Optional<NPCConfig> configOpt = configProvider.getNpcConfigByName(npcName);
+							configOpt.ifPresent(config -> config.getMemoryFragments()
+								.forEach(fragment -> builder.suggest(fragment.getId())));
 							return builder.buildFuture();
-						}).then(argument("memoryId", StringArgumentType.string())
-								.suggests((context, builder) -> {
-									String npcName = StringArgumentType.getString(context, "npcName");
-									Optional<NPCConfig> configOpt = configProvider.getNpcConfigByName(npcName);
-									configOpt.ifPresent(config -> config.getMemoryFragments()
-											.forEach(fragment -> builder.suggest(fragment.getId())));
-									return builder.buildFuture();
-								}).executes(this::lockMemory)))));
+						}).executes(this::lockMemory))));
 	}
 
 	private int createMemory(CommandContext<ServerCommandSource> context, boolean isUnlocked) {
