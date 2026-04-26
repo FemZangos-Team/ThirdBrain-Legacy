@@ -10,14 +10,16 @@ import me.sailex.secondbrain.history.ConversationHistory
 import me.sailex.secondbrain.history.Message
 import me.sailex.secondbrain.llm.LLMClient
 import me.sailex.secondbrain.llm.openai.OpenAiClient
+import me.sailex.secondbrain.llm.openwebui.OpenWebUiClient
 import me.sailex.secondbrain.llm.player2.Player2APIClient
 import me.sailex.secondbrain.llm.roles.Player2ChatRole
 import me.sailex.secondbrain.util.LogUtil
 import me.sailex.secondbrain.util.PromptFormatter
 import net.minecraft.util.math.BlockPos
 import java.util.ArrayDeque
+import java.util.LinkedHashSet
 import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.CompletableFuture
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
@@ -32,16 +34,17 @@ class NPCEventHandler(
         private val gson = GsonBuilder()
             .setLenient()
             .create()
+        private val BLOCKED_COMMAND_KEYWORDS = listOf("attack", "kill", "break", "place", "mine", "punch", "destroy")
     }
 
     private val executorService: ThreadPoolExecutor = ThreadPoolExecutor(
         1, 1, 0L, TimeUnit.MILLISECONDS,
-        ArrayBlockingQueue(10),
-        ThreadPoolExecutor.DiscardPolicy()
+        ArrayBlockingQueue(10)
     )
     private val commandErrorPromptTimestamps = ArrayDeque<Long>()
     private val diagRateLimitMs = 5000L
     private val commandLoopWindowMs = 10_000L
+    private val maxCommandErrorPromptsPerWindow = 3
 
     /**
      * Processes an event asynchronously by allowing call actions from llm using the specified prompt.
@@ -52,64 +55,77 @@ class NPCEventHandler(
     override fun onEvent(prompt: String) {
         val queueDepthBeforeEnqueue = executorService.queue.size
         logQueueDepthDiagnostic(queueDepthBeforeEnqueue)
-        trackCommandErrorLoopPressure(prompt)
-
-        CompletableFuture.runAsync({
-            val eventStartNs = System.nanoTime()
-            LogUtil.info("onEvent: $prompt")
-
-            val worldContext = contextProvider.buildContext()
-            val zoneAwarePrompt = applyZoneSpecificBehaviour(prompt, worldContext.state().position())
-            val formattedPrompt: String = PromptFormatter.format(zoneAwarePrompt, worldContext)
-
-            history.add(Message(formattedPrompt, Player2ChatRole.USER.toString().lowercase()))
-            val systemPrompt = Instructions.getLlmSystemPrompt(
-                config.npcName,
-                config.getEffectiveLlmCharacter(),
-                controller.commandExecutor.allCommands(),
-                config.llmType
+        if (shouldDropCommandErrorPrompt(prompt)) {
+            LogUtil.warnRateLimited(
+                "event.command_loop_dropped.${config.npcName}",
+                "[SB-DIAG] area=command-loop npc=${config.npcName} thread=${Thread.currentThread().name} metric=dropped_failed_command_retry value=1",
+                diagRateLimitMs
             )
-            val llmStartNs = System.nanoTime()
-            val response = llmClient.chat(history.buildMessagesForApi(systemPrompt))
-            val llmCallMs = millisSince(llmStartNs)
-            logLlmLatencyDiagnostic(llmCallMs)
-            history.add(response)
+            return
+        }
 
-            val parsedMessage = parse(response.message)
-            val commandDispatchStartNs = System.nanoTime()
-            val succeeded = execute(parsedMessage.command)
-            val commandDispatchMs = millisSince(commandDispatchStartNs)
-            logCommandDispatchLatencyDiagnostic(commandDispatchMs)
-            if (!succeeded) {
-                logEventTotalLatencyDiagnostic(millisSince(eventStartNs), queueDepthBeforeEnqueue, llmCallMs, commandDispatchMs)
-                return@runAsync
-            }
+        try {
+            executorService.execute task@{
+                val eventStartNs = System.nanoTime()
+                try {
+                    LogUtil.info("onEvent: $prompt")
 
-            //prevent printing multiple times the same when llm is running in command syntax errors
-            if (parsedMessage.message != history.getLastMessage()) {
-                // Always send text chat; TTS is additional output when enabled.
-                controller.controllerExtras.chat(parsedMessage.message)
-                if (!config.isTTS) return@runAsync
+                    val worldContext = contextProvider.buildContext()
+                    val activeZone = resolveActiveZoneBehavior(worldContext.state().position())
+                    val zoneAwarePrompt = applyZoneSpecificBehaviour(prompt, activeZone)
+                    val formattedPrompt: String = PromptFormatter.format(zoneAwarePrompt, worldContext)
 
-                when (llmClient) {
-                    is Player2APIClient -> llmClient.startTextToSpeech(parsedMessage.message)
-                    is OpenAiClient -> {
-                        try {
-                            llmClient.startTextToSpeech(parsedMessage.message)
-                        } catch (e: Exception) {
-                            LogUtil.error("OpenAI TTS failed", e)
+                    history.add(Message(formattedPrompt, Player2ChatRole.USER.toString().lowercase()))
+                    val systemPrompt = Instructions.getLlmSystemPrompt(
+                        config.npcName,
+                        config.getEffectiveLlmCharacter(llmClient is OpenWebUiClient),
+                        controller.commandExecutor.allCommands(),
+                        config.llmType
+                    )
+                    val collectionIds = if (llmClient is OpenWebUiClient) {
+                        buildCollectionIdsForRequest(activeZone)
+                    } else {
+                        emptyList()
+                    }
+                    val llmStartNs = System.nanoTime()
+                    val response = llmClient.chat(history.buildMessagesForApi(systemPrompt), collectionIds)
+                    val llmCallMs = millisSince(llmStartNs)
+                    logLlmLatencyDiagnostic(llmCallMs)
+                    history.add(response)
+
+                    val parsedMessage = parse(response.message)
+                    val commandDispatchStartNs = System.nanoTime()
+                    execute(parsedMessage.command)
+                    val commandDispatchMs = millisSince(commandDispatchStartNs)
+                    logCommandDispatchLatencyDiagnostic(commandDispatchMs)
+
+                    //prevent printing multiple times the same when llm is running in command syntax errors
+                    if (parsedMessage.message != history.getLastMessage()) {
+                        // Always send text chat; TTS is additional output when enabled.
+                        controller.controllerExtras.chat(parsedMessage.message)
+                        if (!config.isTTS) return@task
+
+                        when (llmClient) {
+                            is Player2APIClient -> llmClient.startTextToSpeech(parsedMessage.message)
+                            is OpenAiClient -> {
+                                try {
+                                    llmClient.startTextToSpeech(parsedMessage.message)
+                                } catch (e: Exception) {
+                                    LogUtil.error("OpenAI TTS failed", e)
+                                }
+                            }
+                            else -> {}
                         }
                     }
-                    else -> {}
+                    logEventTotalLatencyDiagnostic(millisSince(eventStartNs), queueDepthBeforeEnqueue, llmCallMs, commandDispatchMs)
+                } catch (e: Throwable) {
+                    LogUtil.debugInChat("Could not generate a response: " + buildErrorMessage(e))
+                    LogUtil.error("Error occurred handling event: $prompt", e)
                 }
             }
-            logEventTotalLatencyDiagnostic(millisSince(eventStartNs), queueDepthBeforeEnqueue, llmCallMs, commandDispatchMs)
-        }, executorService)
-            .exceptionally {
-                LogUtil.debugInChat("Could not generate a response: " + buildErrorMessage(it))
-                LogUtil.error("Error occurred handling event: $prompt", it)
-                null
-            }
+        } catch (e: RejectedExecutionException) {
+            LogUtil.error("Dropped NPC event because the queue is full (size=${executorService.queue.size}): $prompt", e)
+        }
     }
 
     override fun stopService() {
@@ -141,12 +157,10 @@ class NPCEventHandler(
         return gson.fromJson(content, CommandMessage::class.java)
     }
 
-    fun execute(command: String): Boolean {
-        var successful = true
+    fun execute(command: String) {
         val cmdExecutor = controller.commandExecutor
         val normalized = command.lowercase()
-        val blocked = listOf("attack", "kill", "break", "place", "mine", "punch", "destroy")
-        val safeCommand = if (blocked.any { normalized.contains(it) }) "idle" else command
+        val safeCommand = if (BLOCKED_COMMAND_KEYWORDS.any { normalized.contains(it) }) "idle" else command
         val commandWithPrefix = if (cmdExecutor.isClientCommand(safeCommand)) {
             safeCommand
         } else {
@@ -157,11 +171,9 @@ class NPCEventHandler(
 //                //this.onEvent(Instructions.COMMAND_FINISHED_PROMPT.format(commandWithPrefix))
 //            }
         }, {
-            successful = false
             this.onEvent(Instructions.COMMAND_ERROR_PROMPT.format(commandWithPrefix, it.message))
             LogUtil.error("Error executing command: $commandWithPrefix", it)
         })
-        return successful
     }
 
     data class CommandMessage(
@@ -178,11 +190,17 @@ class NPCEventHandler(
         return "LLM request failed: provider returned a non-2xx response with an empty error body. Check base URL, model, and API key."
     }
 
-    private fun applyZoneSpecificBehaviour(prompt: String, position: BlockPos): String {
-        val matchingZone = config.zoneBehaviors
-            .filter { it.instructions.isNotBlank() && it.contains(position) }
+    private fun resolveActiveZoneBehavior(position: BlockPos): NPCConfig.ZoneBehavior? {
+        return config.zoneBehaviors
+            .filter { it.contains(position) && (it.instructions.isNotBlank() || it.hasCollectionId()) }
             .maxByOrNull { it.priority }
-            ?: return prompt
+    }
+
+    private fun applyZoneSpecificBehaviour(prompt: String, activeZone: NPCConfig.ZoneBehavior?): String {
+        val matchingZone = activeZone ?: return prompt
+        if (matchingZone.hasCollectionId()) {
+            return prompt
+        }
 
         return """
             $prompt
@@ -192,10 +210,24 @@ class NPCEventHandler(
         """.trimIndent()
     }
 
-    private fun trackCommandErrorLoopPressure(prompt: String) {
-        if (!LogUtil.isVerboseEnabled()) return
+    private fun buildCollectionIdsForRequest(activeZone: NPCConfig.ZoneBehavior?): List<String> {
+        val resolved = LinkedHashSet<String>()
+        config.unlockedMemoryCollectionIds
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .forEach(resolved::add)
+
+        val zoneCollectionId = activeZone?.collectionId?.trim().orEmpty()
+        if (zoneCollectionId.isNotBlank()) {
+            resolved.add(zoneCollectionId)
+        }
+
+        return resolved.toList()
+    }
+
+    private fun shouldDropCommandErrorPrompt(prompt: String): Boolean {
         val trimmedPrompt = prompt.trimStart()
-        if (!trimmedPrompt.startsWith("Command ") || !trimmedPrompt.contains(" failed. Error content:")) return
+        if (!trimmedPrompt.startsWith("Command ") || !trimmedPrompt.contains(" failed. Error content:")) return false
 
         val now = System.currentTimeMillis()
         val failuresInWindow: Int
@@ -212,13 +244,14 @@ class NPCEventHandler(
             failuresInWindow = commandErrorPromptTimestamps.size
         }
 
-        if (failuresInWindow > 3) {
+        if (failuresInWindow > maxCommandErrorPromptsPerWindow) {
             LogUtil.warnRateLimited(
                 "event.command_loop_pressure.${config.npcName}",
                 "[SB-DIAG] area=command-loop npc=${config.npcName} thread=${Thread.currentThread().name} metric=failed_command_retries_10s value=$failuresInWindow",
                 diagRateLimitMs
             )
         }
+        return failuresInWindow > maxCommandErrorPromptsPerWindow
     }
 
     private fun logQueueDepthDiagnostic(queueDepthBeforeEnqueue: Int) {

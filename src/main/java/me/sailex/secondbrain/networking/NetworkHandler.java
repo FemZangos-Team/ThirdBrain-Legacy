@@ -73,6 +73,9 @@ public class NetworkHandler {
                 if (updatedConfig.getOpenaiApiKey().isBlank()) {
                     updatedConfig.setOpenaiApiKey(currentConfig.getOpenaiApiKey());
                 }
+                if (updatedConfig.getOpenwebuiApiKey().isBlank()) {
+                    updatedConfig.setOpenwebuiApiKey(currentConfig.getOpenwebuiApiKey());
+                }
                 configProvider.setBaseConfig(updatedConfig);
                 LogUtil.info("Updated base config to: " + configPacket);
             }
@@ -115,13 +118,18 @@ public class NetworkHandler {
     private void registerDeleteNpc() {
         CHANNEL.registerServerbound(DeleteNpcPacket.class, (configPacket, serverAccess) -> {
             if (authorizer.isAuthorized(serverAccess)) {
-                PlayerManager playerManager = EntityVer.getWorld(serverAccess.player()).getServer().getPlayerManager();
-                UUID uuid = UUID.fromString(configPacket.uuid());
+                try {
+                    PlayerManager playerManager = EntityVer.getWorld(serverAccess.player()).getServer().getPlayerManager();
+                    UUID uuid = UUID.fromString(configPacket.uuid());
 
-                if (configPacket.isDelete()) {
-                    npcService.deleteNpc(uuid, playerManager);
-                } else {
-                    npcService.removeNpc(uuid, playerManager);
+                    if (configPacket.isDelete()) {
+                        npcService.deleteNpc(uuid, playerManager);
+                    } else {
+                        npcService.removeNpc(uuid, playerManager);
+                    }
+                } catch (Exception e) {
+                    LogUtil.error("Failed to process npc delete/despawn packet.", e);
+                    LogUtil.errorInChat("Failed to despawn npc due to an internal error. Check logs.");
                 }
             }
         });

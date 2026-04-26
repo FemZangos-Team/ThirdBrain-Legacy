@@ -46,12 +46,11 @@ public class SqliteClient {
 	 */
 	public ResultSet query(String sql) {
 		try {
-			Statement statement = connection.createStatement();
+			Statement statement = requireConnection().createStatement();
 			statement.closeOnCompletion();
 			return statement.executeQuery(sql);
 		} catch (SQLException e) {
-			LOGGER.error("Error selecting rule: ", e);
-			return null;
+			throw new IllegalStateException("Error selecting rows for query: " + sql, e);
 		}
 	}
 
@@ -63,16 +62,15 @@ public class SqliteClient {
 		try {
 			statement.executeUpdate();
 		} catch (SQLException e) {
-			LOGGER.error("Error inserting statement: {} : {}", statement, e.getMessage());
+			throw new IllegalStateException("Error executing prepared statement: " + statement, e);
 		}
 	}
 
 	public PreparedStatement buildPreparedStatement(String sql) {
 		try {
-			return connection.prepareStatement(sql);
+			return requireConnection().prepareStatement(sql);
 		} catch (SQLException e) {
-			LOGGER.error("Error building prepared statement: {}", e.getMessage());
-			return null;
+			throw new IllegalStateException("Error building prepared statement: " + sql, e);
 		}
 	}
 
@@ -81,10 +79,10 @@ public class SqliteClient {
 	 * @param sql the SQL query to create a table
 	 */
 	public void update(String sql) {
-		try (Statement statement = connection.createStatement()) {
+		try (Statement statement = requireConnection().createStatement()) {
 			statement.execute(sql);
 		} catch (SQLException e) {
-			LOGGER.error("Error executing query {} : {}", sql, e.getMessage());
+			throw new IllegalStateException("Error executing SQL query: " + sql, e);
 		}
 	}
 
@@ -100,5 +98,19 @@ public class SqliteClient {
 		} catch (SQLException e) {
 			LOGGER.error("Error closing database connection: {}", e.getMessage());
 		}
+	}
+
+	private Connection requireConnection() {
+		if (connection == null) {
+			throw new IllegalStateException("Database connection is not initialized.");
+		}
+		try {
+			if (connection.isClosed()) {
+				throw new IllegalStateException("Database connection is already closed.");
+			}
+		} catch (SQLException e) {
+			throw new IllegalStateException("Could not access database connection state.", e);
+		}
+		return connection;
 	}
 }

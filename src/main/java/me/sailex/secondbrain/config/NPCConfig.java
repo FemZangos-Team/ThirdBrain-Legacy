@@ -129,8 +129,12 @@ public class NPCConfig implements Configurable {
     }
 
 	public String getEffectiveLlmCharacter() {
+		return getEffectiveLlmCharacter(false);
+	}
+
+	public String getEffectiveLlmCharacter(boolean excludeCollectionBackedMemoryPrompts) {
 		StringBuilder effectivePrompt = new StringBuilder(llmCharacter == null ? "" : llmCharacter);
-		String unlockedMemoryPrompt = buildUnlockedMemoryPrompt();
+		String unlockedMemoryPrompt = buildUnlockedMemoryPrompt(excludeCollectionBackedMemoryPrompts);
 		if (!unlockedMemoryPrompt.isBlank()) {
 			effectivePrompt.append("\n\n").append(unlockedMemoryPrompt);
 		}
@@ -147,9 +151,14 @@ public class NPCConfig implements Configurable {
 	}
 
 	public String buildUnlockedMemoryPrompt() {
+		return buildUnlockedMemoryPrompt(false);
+	}
+
+	public String buildUnlockedMemoryPrompt(boolean excludeCollectionBackedPrompts) {
 		StringBuilder unlockedFragments = new StringBuilder("Unlocked memory fragments:\n");
 		getMemoryFragments().stream()
 				.filter(MemoryFragment::isUnlocked)
+				.filter(fragment -> !excludeCollectionBackedPrompts || !fragment.hasCollectionId())
 				.forEach(fragment -> unlockedFragments
 						.append(" - ").append(fragment.toSystemPrompt())
 						.append("\n"));
@@ -157,6 +166,17 @@ public class NPCConfig implements Configurable {
 			return "";
 		}
 		return unlockedFragments.toString().trim();
+	}
+
+	public List<String> getUnlockedMemoryCollectionIds() {
+		return getMemoryFragments().stream()
+				.filter(MemoryFragment::isUnlocked)
+				.map(MemoryFragment::getCollectionId)
+				.filter(Objects::nonNull)
+				.map(String::trim)
+				.filter(id -> !id.isBlank())
+				.distinct()
+				.toList();
 	}
 
 	public List<MemoryFragment> getMemoryFragments() {
@@ -290,7 +310,8 @@ public class NPCConfig implements Configurable {
 			copied.add(new MemoryFragment(
 					memoryFragment.getId(),
 					memoryFragment.getPrompt(),
-					memoryFragment.isUnlocked()
+					memoryFragment.isUnlocked(),
+					memoryFragment.getCollectionId()
 			));
 		}
 		return copied;
@@ -315,7 +336,8 @@ public class NPCConfig implements Configurable {
 							zoneBehavior.getTo().getZ()
 					),
 					zoneBehavior.getPriority(),
-					zoneBehavior.getInstructions()
+					zoneBehavior.getInstructions(),
+					zoneBehavior.getCollectionId()
 			));
 		}
 		return copied;
@@ -338,6 +360,7 @@ public class NPCConfig implements Configurable {
 		private String id = "memory_id";
 		private String prompt = "";
 		private boolean unlocked = false;
+		private String collectionId = "";
 
 		public MemoryFragment() {}
 
@@ -346,9 +369,19 @@ public class NPCConfig implements Configurable {
 				String prompt,
 				boolean unlocked
 		) {
+			this(id, prompt, unlocked, "");
+		}
+
+		public MemoryFragment(
+				String id,
+				String prompt,
+				boolean unlocked,
+				String collectionId
+		) {
 			this.id = id == null ? "memory_id" : id;
 			this.prompt = prompt == null ? "" : prompt;
 			this.unlocked = unlocked;
+			this.collectionId = collectionId == null ? "" : collectionId;
 		}
 
 		public String getId() {
@@ -365,6 +398,18 @@ public class NPCConfig implements Configurable {
 
 		public void setPrompt(String prompt) {
 			this.prompt = prompt == null ? "" : prompt;
+		}
+
+		public String getCollectionId() {
+			return collectionId;
+		}
+
+		public void setCollectionId(String collectionId) {
+			this.collectionId = collectionId == null ? "" : collectionId;
+		}
+
+		public boolean hasCollectionId() {
+			return !getCollectionId().isBlank();
 		}
 
 		public boolean isUnlocked() {
@@ -393,32 +438,23 @@ public class NPCConfig implements Configurable {
 			}
 			return unlocked == other.unlocked &&
 					Objects.equals(id, other.id) &&
-					Objects.equals(prompt, other.prompt);
+					Objects.equals(prompt, other.prompt) &&
+					Objects.equals(collectionId, other.collectionId);
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(id, prompt, unlocked);
+			return Objects.hash(id, prompt, unlocked, collectionId);
 		}
 
 		public static final StructEndec<MemoryFragment> ENDEC = StructEndecBuilder.of(
 				Endec.STRING.fieldOf("id", MemoryFragment::getId),
 				Endec.STRING.fieldOf("prompt", MemoryFragment::getPrompt),
 				Endec.BOOLEAN.fieldOf("unlocked", MemoryFragment::isUnlocked),
-				MemoryFragment::new
+				Endec.STRING.optionalFieldOf("collectionId", MemoryFragment::getCollectionId, ""),
+				(id, prompt, unlocked, collectionId) -> new MemoryFragment(id, prompt, unlocked, collectionId)
 		);
 	}
-
-	//name for fields for npc config screen
-	public static final String NPC_NAME = "Name of the NPC";
-	public static final String EDIT_NPC = "Edit '%s'";
-	public static final String LLM_CHARACTER = "Characteristics";
-	public static final String LLM_TYPE = "Type";
-	public static final String LLM_MODEL = "LLM Model";
-	public static final String IS_TTS = "Text to Speech";
-	public static final String CONVERSATION_RANGE = "Conversation Range (blocks)";
-	public static final String ZONE_SPECIFIC_BEHAVIOUR = "Zone Specific Behaviour";
-	public static final String ADD_ZONE = "+ Add Zone";
 
 	public static class ZoneBehavior {
 		private String name = "Zone";
@@ -426,6 +462,7 @@ public class NPCConfig implements Configurable {
 		private ZoneCoordinate to = new ZoneCoordinate();
 		private int priority = 0;
 		private String instructions = "";
+		private String collectionId = "";
 
 		public ZoneBehavior() {}
 
@@ -436,11 +473,23 @@ public class NPCConfig implements Configurable {
 				int priority,
 				String instructions
 		) {
+			this(name, from, to, priority, instructions, "");
+		}
+
+		public ZoneBehavior(
+				String name,
+				ZoneCoordinate from,
+				ZoneCoordinate to,
+				int priority,
+				String instructions,
+				String collectionId
+		) {
 			this.name = name;
 			this.from = from == null ? new ZoneCoordinate() : from;
 			this.to = to == null ? new ZoneCoordinate() : to;
 			this.priority = priority;
 			this.instructions = instructions == null ? "" : instructions;
+			this.collectionId = collectionId == null ? "" : collectionId;
 		}
 
 		public boolean contains(BlockPos position) {
@@ -481,6 +530,10 @@ public class NPCConfig implements Configurable {
 			return instructions;
 		}
 
+		public String getCollectionId() {
+			return collectionId;
+		}
+
 		public void setName(String name) {
 			this.name = name == null ? "Zone" : name;
 		}
@@ -501,6 +554,14 @@ public class NPCConfig implements Configurable {
 			this.instructions = instructions == null ? "" : instructions;
 		}
 
+		public void setCollectionId(String collectionId) {
+			this.collectionId = collectionId == null ? "" : collectionId;
+		}
+
+		public boolean hasCollectionId() {
+			return !getCollectionId().isBlank();
+		}
+
 		@Override
 		public boolean equals(Object obj) {
 			if (this == obj) {
@@ -513,12 +574,13 @@ public class NPCConfig implements Configurable {
 					Objects.equals(name, other.name) &&
 					Objects.equals(from, other.from) &&
 					Objects.equals(to, other.to) &&
-					Objects.equals(instructions, other.instructions);
+					Objects.equals(instructions, other.instructions) &&
+					Objects.equals(collectionId, other.collectionId);
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(name, from, to, priority, instructions);
+			return Objects.hash(name, from, to, priority, instructions, collectionId);
 		}
 
 		public static final StructEndec<ZoneBehavior> ENDEC = StructEndecBuilder.of(
@@ -527,7 +589,8 @@ public class NPCConfig implements Configurable {
 				ZoneCoordinate.ENDEC.fieldOf("to", ZoneBehavior::getTo),
 				Endec.INT.fieldOf("priority", ZoneBehavior::getPriority),
 				Endec.STRING.fieldOf("instructions", ZoneBehavior::getInstructions),
-				ZoneBehavior::new
+				Endec.STRING.optionalFieldOf("collectionId", ZoneBehavior::getCollectionId, ""),
+				(name, from, to, priority, instructions, collectionId) -> new ZoneBehavior(name, from, to, priority, instructions, collectionId)
 		);
 	}
 

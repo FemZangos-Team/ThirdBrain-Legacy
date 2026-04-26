@@ -9,14 +9,18 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class BaseConfig implements Configurable {
-    private int llmTimeout = 10;
+    private static final String DEFAULT_OLLAMA_URL = "http://localhost:11434/v1";
+
+    private int llmTimeout = 60;
     private int contextChunkRadius = 4;
     private int contextVerticalScanRange = 8;
     private int chunkExpiryTime = 60;
     private boolean verbose = false;
-    private String ollamaUrl = "http://localhost:11434";
+    private String ollamaUrl = DEFAULT_OLLAMA_URL;
     private String openaiBaseUrl = "https://api.openai.com/v1";
     private String openaiApiKey = "";
+    private String openwebuiBaseUrl = "http://localhost:3000";
+    private String openwebuiApiKey = "";
 
     public int getLlmTimeout() {
         return llmTimeout;
@@ -59,11 +63,11 @@ public class BaseConfig implements Configurable {
     }
 
     public String getOllamaUrl() {
-        return ollamaUrl;
+        return normalizeOllamaUrl(ollamaUrl);
     }
 
     public void setOllamaUrl(String ollamaUrl) {
-        this.ollamaUrl = ollamaUrl;
+        this.ollamaUrl = normalizeOllamaUrl(ollamaUrl);
     }
 
     public String getOpenaiBaseUrl() {
@@ -82,6 +86,22 @@ public class BaseConfig implements Configurable {
         this.openaiApiKey = openaiApiKey;
     }
 
+    public String getOpenwebuiBaseUrl() {
+        return openwebuiBaseUrl;
+    }
+
+    public void setOpenwebuiBaseUrl(String openwebuiBaseUrl) {
+        this.openwebuiBaseUrl = openwebuiBaseUrl;
+    }
+
+    public String getOpenwebuiApiKey() {
+        return openwebuiApiKey;
+    }
+
+    public void setOpenwebuiApiKey(String openwebuiApiKey) {
+        this.openwebuiApiKey = openwebuiApiKey;
+    }
+
     @Override
     public String getConfigName() {
         return "base";
@@ -96,6 +116,8 @@ public class BaseConfig implements Configurable {
             Endec.STRING.fieldOf("ollamaUrl", BaseConfig::getOllamaUrl),
             Endec.STRING.fieldOf("openaiBaseUrl", BaseConfig::getOpenaiBaseUrl),
             Endec.STRING.fieldOf("openaiApiKey", BaseConfig::getOpenaiApiKey),
+            Endec.STRING.fieldOf("openwebuiBaseUrl", BaseConfig::getOpenwebuiBaseUrl),
+            Endec.STRING.fieldOf("openwebuiApiKey", BaseConfig::getOpenwebuiApiKey),
             BaseConfig::new
     );
 
@@ -109,7 +131,9 @@ public class BaseConfig implements Configurable {
                 ",verbose=" + verbose +
                 ",ollamaUrl=" + ollamaUrl +
                 ",openaiBaseUrl=" + openaiBaseUrl +
-                ",openaiApiKey=***}";
+                ",openaiApiKey=***" +
+                ",openwebuiBaseUrl=" + openwebuiBaseUrl +
+                ",openwebuiApiKey=***}";
     }
 
     public static BaseConfig deepCopy(BaseConfig config) {
@@ -122,15 +146,20 @@ public class BaseConfig implements Configurable {
         copied.setOllamaUrl(config.getOllamaUrl());
         copied.setOpenaiBaseUrl(config.getOpenaiBaseUrl());
         copied.setOpenaiApiKey(config.getOpenaiApiKey());
+        copied.setOpenwebuiBaseUrl(config.getOpenwebuiBaseUrl());
+        copied.setOpenwebuiApiKey(config.getOpenwebuiApiKey());
         return copied;
     }
 
-    public static final String LLM_TIMEOUT_KEY = "LLM Service Timeout";
-    public static final String CONTEXT_CHUNK_RADIUS_KEY = "Chunk Radius";
-    public static final String CONTEXT_VERTICAL_RANGE_KEY = "Vertical Scan Range";
-    public static final String CHUNK_EXPIRY_TIME_KEY = "Chunk Expiry Time";
-    public static final String VERBOSE_KEY = "Debug Mode";
-    public static final String OLLAMA_URL_KEY = "Ollama URL";
-    public static final String OPENAI_BASE_URL_KEY = "OpenAI Compatible URL";
-    public static final String OPENAI_API_KEY = "OpenAI API Key";
+    private static String normalizeOllamaUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return DEFAULT_OLLAMA_URL;
+        }
+        String normalized = url.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized.endsWith("/v1") ? normalized : normalized + "/v1";
+    }
+
 }

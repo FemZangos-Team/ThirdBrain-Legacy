@@ -1,14 +1,7 @@
 package me.sailex.secondbrain.llm.openai;
 
-import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
-import com.openai.core.JsonValue;
-import com.openai.core.http.HttpResponse;
-import com.openai.models.ResponseFormatJsonSchema;
-import com.openai.models.audio.speech.SpeechCreateParams;
-import com.openai.models.audio.speech.SpeechModel;
-import com.openai.models.chat.completions.ChatCompletion;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import me.sailex.secondbrain.exception.LLMServiceException;
 import me.sailex.secondbrain.history.Message;
 import me.sailex.secondbrain.llm.LLMClient;
@@ -19,34 +12,28 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.SourceDataLine;
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class OpenAiClient implements LLMClient {
 
-	private final OpenAIClient openAiService;
-	private final String openAiModel;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String OPENAI_TTS_MODEL = "gpt-4o-mini-tts";
+
+    private final OpenAiCompatibleChatClient chatClient;
+    private final HttpClient httpClient;
+    private final String normalizedBaseUrl;
+    private final String apiKey;
+    private final Duration requestTimeout;
     private final String voiceId;
     private final List<SourceDataLine> activeLines = Collections.synchronizedList(new ArrayList<>());
-    private static final ResponseFormatJsonSchema NPC_COMMAND_RESPONSE_FORMAT = ResponseFormatJsonSchema.builder()
-            .jsonSchema(ResponseFormatJsonSchema.JsonSchema.builder()
-                    .name("npc_command_message")
-                    .strict(true)
-                    .schema(ResponseFormatJsonSchema.JsonSchema.Schema.builder()
-                            .putAdditionalProperty("type", JsonValue.from("object"))
-                            .putAdditionalProperty("additionalProperties", JsonValue.from(false))
-                            .putAdditionalProperty("properties", JsonValue.from(Map.of(
-                                    "command", Map.of("type", "string"),
-                                    "message", Map.of("type", "string", "maxLength", 250)
-                            )))
-                            .putAdditionalProperty("required", JsonValue.from(List.of("command", "message")))
-                            .build())
-                    .build())
-            .build();
 
 	/**
 	 * Constructor for OpenAiClient.
@@ -54,45 +41,30 @@ public class OpenAiClient implements LLMClient {
 	 * @param apiKey  the api key
 	 */
 	public OpenAiClient(String model, String apiKey, String baseUrl, int timeout, String voiceId) {
-		this.openAiModel = model;
-        this.voiceId = voiceId;
-		this.openAiService = OpenAIOkHttpClient.builder()
-                .apiKey(apiKey)
-                .baseUrl(normalizeBaseUrl(baseUrl))
-                .timeout(Duration.ofSeconds(Math.max(timeout, 1)))
+        this.chatClient = new OpenAiCompatibleChatClient(
+                model,
+                apiKey,
+                baseUrl,
+                timeout,
+                OpenAiCompatibleChatClient.ProviderTarget.OPENAI
+        );
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(Math.max(timeout, 1)))
                 .build();
+        this.normalizedBaseUrl = chatClient.getNormalizedBaseUrl();
+        this.requestTimeout = Duration.ofSeconds(Math.max(timeout, 1));
+        this.apiKey = apiKey;
+        this.voiceId = voiceId;
 	}
 
 	@Override
 	public Message chat(List<Message> messages) {
-		try {
-            ChatCompletionCreateParams.Builder requestBuilder = ChatCompletionCreateParams.builder()
-                    .model(openAiModel);
-            for (Message message : messages) {
-                addMessage(requestBuilder, message);
-            }
-            if (shouldForceCommandJson(messages)) {
-                requestBuilder.responseFormat(NPC_COMMAND_RESPONSE_FORMAT);
-            }
-
-            ChatCompletion response = openAiService.chat().completions().create(requestBuilder.build());
-            String content = response.choices().stream()
-                    .findFirst()
-                    .flatMap(choice -> choice.message().content())
-                    .orElse("");
-            return new Message(content, "assistant");
-        } catch (Exception e) {
-            Throwable root = e;
-            while (root.getCause() != null) root = root.getCause();
-            String safeRootMessage = "Provider returned an error. Check base URL, model, and API key.";
-            throw new LLMServiceException("Could not generate Response for prompt: " + messages.get(messages.size() - 1).getMessage()
-                    + "\nRoot cause: " + root.getClass().getSimpleName() + ": " + safeRootMessage, e);
-        }
+        return chatClient.chat(messages);
     }
 
     @Override
     public void checkServiceIsReachable() {
-        //i guess its always reachable?
+        chatClient.checkServiceIsReachable();
     }
 
     @Override
@@ -116,22 +88,27 @@ public class OpenAiClient implements LLMClient {
             return;
         }
         try {
-            SpeechCreateParams request = SpeechCreateParams.builder()
-                    .model(SpeechModel.GPT_4O_MINI_TTS)
-                    .voice(resolveVoice(voiceId))
-                    .input(message)
-                    .responseFormat(SpeechCreateParams.ResponseFormat.WAV)
-                    .build();
+            ObjectNode requestBody = MAPPER.createObjectNode();
+            requestBody.put("model", OPENAI_TTS_MODEL);
+            requestBody.put("voice", resolveVoice(voiceId));
+            requestBody.put("input", message);
+            requestBody.put("response_format", "wav");
 
-            byte[] audioBytes;
-            try (HttpResponse response = openAiService.audio().speech().create(request);
-                 InputStream body = response.body()) {
-                if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                    throw new LLMServiceException("OpenAI TTS request failed with HTTP status " + response.statusCode());
-                }
-                audioBytes = body.readAllBytes();
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                    .uri(URI.create(normalizedBaseUrl + "/audio/speech"))
+                    .timeout(requestTimeout)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(requestBody), StandardCharsets.UTF_8));
+            if (apiKey != null && !apiKey.isBlank()) {
+                requestBuilder.header("Authorization", "Bearer " + apiKey.trim());
             }
-            playWav(audioBytes);
+
+            HttpResponse<byte[]> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new LLMServiceException("OpenAI TTS request failed with HTTP status " + response.statusCode());
+            }
+
+            playWav(response.body());
         } catch (Exception e) {
             Throwable root = e;
             while (root.getCause() != null) root = root.getCause();
@@ -141,64 +118,21 @@ public class OpenAiClient implements LLMClient {
         }
     }
 
-    private static String normalizeBaseUrl(String baseUrl) {
-        if (baseUrl == null || baseUrl.isBlank()) {
-            return "https://api.openai.com/v1";
-        }
-        String normalized = baseUrl.trim();
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized.endsWith("/v1") ? normalized : normalized + "/v1";
-    }
-
-    private static void addMessage(ChatCompletionCreateParams.Builder builder, Message message) {
-        String role = message.getRole() == null ? "user" : message.getRole().trim().toLowerCase();
-        if ("system".equals(role)) {
-            builder.addSystemMessage(message.getMessage());
-        } else if ("assistant".equals(role)) {
-            builder.addAssistantMessage(message.getMessage());
-        } else {
-            builder.addUserMessage(message.getMessage());
-        }
-    }
-
-    private static boolean shouldForceCommandJson(List<Message> messages) {
-        for (Message message : messages) {
-            if (message == null || message.getMessage() == null) {
-                continue;
-            }
-            String role = message.getRole() == null ? "" : message.getRole().trim().toLowerCase();
-            if (!"system".equals(role)) {
-                continue;
-            }
-            String content = message.getMessage();
-            boolean containsOutputShape = content.contains("\"command\"") && content.contains("\"message\"");
-            boolean containsCommandInstructions = content.contains("VALID COMMANDS")
-                    || content.contains("Respond ONLY with a single valid JSON object")
-                    || content.contains("FINAL REMINDER: Output ONLY the JSON object");
-            if (containsOutputShape && containsCommandInstructions) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static SpeechCreateParams.Voice resolveVoice(String selectedVoiceId) {
+    private static String resolveVoice(String selectedVoiceId) {
         if (selectedVoiceId == null) {
-            return SpeechCreateParams.Voice.ALLOY;
+            return "alloy";
         }
         return switch (selectedVoiceId.trim().toLowerCase()) {
-            case "ash" -> SpeechCreateParams.Voice.ASH;
-            case "ballad" -> SpeechCreateParams.Voice.BALLAD;
-            case "coral" -> SpeechCreateParams.Voice.CORAL;
-            case "echo" -> SpeechCreateParams.Voice.ECHO;
-            case "sage" -> SpeechCreateParams.Voice.SAGE;
-            case "shimmer" -> SpeechCreateParams.Voice.SHIMMER;
-            case "verse" -> SpeechCreateParams.Voice.VERSE;
-            case "marin" -> SpeechCreateParams.Voice.MARIN;
-            case "cedar" -> SpeechCreateParams.Voice.CEDAR;
-            default -> SpeechCreateParams.Voice.ALLOY;
+            case "ash" -> "ash";
+            case "ballad" -> "ballad";
+            case "coral" -> "coral";
+            case "echo" -> "echo";
+            case "sage" -> "sage";
+            case "shimmer" -> "shimmer";
+            case "verse" -> "verse";
+            case "marin" -> "marin";
+            case "cedar" -> "cedar";
+            default -> "alloy";
         };
     }
 

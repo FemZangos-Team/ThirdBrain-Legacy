@@ -1,6 +1,7 @@
 package me.sailex.secondbrain.client.gui.screen;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
+import io.wispforest.owo.ui.component.CheckboxComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextAreaComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
@@ -10,6 +11,8 @@ import io.wispforest.owo.ui.core.Surface;
 import me.sailex.secondbrain.client.networking.ClientNetworkManager;
 import me.sailex.secondbrain.config.BaseConfig;
 import me.sailex.secondbrain.config.NPCConfig;
+import me.sailex.secondbrain.llm.LLMType;
+import me.sailex.secondbrain.networking.packet.UpdateNpcConfigPacket;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -32,6 +35,7 @@ public class NPCZoneBehaviorScreen extends ConfigScreen<NPCConfig> {
     private static final int WIDE_INPUT_WIDTH = 42;
     private static final int SINGLE_LINE_INPUT_HEIGHT = 9;
     private static final int ZONE_INSTRUCTIONS_HEIGHT = 22;
+    private static final int COLLECTION_INPUT_HEIGHT = 9;
     private static final int INTEGER_INPUT_WIDTH = 38;
 
     private final List<NPCConfig> existingConfigs;
@@ -86,7 +90,10 @@ public class NPCZoneBehaviorScreen extends ConfigScreen<NPCConfig> {
             renderZones(zoneList);
         });
 
-        onPressSaveButton(rootComponent, button -> goBackToNpcConfig());
+        onPressSaveButton(rootComponent, button -> {
+            networkManager.sendPacket(new UpdateNpcConfigPacket(config));
+            goBackToNpcConfig();
+        });
         rootComponent.childById(ButtonComponent.class, "cancel").onPress(button -> goBackToNpcConfig());
     }
 
@@ -95,7 +102,7 @@ public class NPCZoneBehaviorScreen extends ConfigScreen<NPCConfig> {
             client.setScreen(new SecondBrainScreen(existingConfigs, baseConfig, networkManager));
             return;
         }
-        client.setScreen(new NPCConfigScreen(networkManager, config, isEdit, existingConfigs));
+        client.setScreen(new NPCConfigScreen(networkManager, config, isEdit, existingConfigs, this));
     }
 
     private void renderZones(FlowLayout zoneList) {
@@ -126,6 +133,7 @@ public class NPCZoneBehaviorScreen extends ConfigScreen<NPCConfig> {
             if (isExpanded) {
                 FlowLayout zoneDetails = verticalFlow(Sizing.fill(100), Sizing.content());
                 zoneDetails.gap(4);
+                boolean allowCollections = config.getLlmType() == LLMType.OPENWEBUI;
 
                 zoneDetails.child(label(Text.of("Name")).shadow(true));
                 TextAreaComponent zoneNameInput = textArea(
@@ -144,13 +152,39 @@ public class NPCZoneBehaviorScreen extends ConfigScreen<NPCConfig> {
                 zoneDetails.child(label(Text.of("To (x, y, z)")).shadow(true));
                 zoneDetails.child(createCoordinateRow(zone.getTo()));
 
-                zoneDetails.child(label(Text.of("Extra Instructions")).shadow(true));
-                TextAreaComponent instructionsInput = textArea(
-                        Sizing.fill(WIDE_INPUT_WIDTH),
-                        Sizing.fill(ZONE_INSTRUCTIONS_HEIGHT)
-                ).text(zone.getInstructions());
-                instructionsInput.onChanged().subscribe(zone::setInstructions);
-                zoneDetails.child(instructionsInput);
+                if (allowCollections) {
+                    CheckboxComponent useCollection = checkbox(Text.of("Use Collection (OpenWebUI)"))
+                            .checked(zone.hasCollectionId())
+                            .onChanged(checked -> {
+                                if (checked) {
+                                    zone.setInstructions("");
+                                    String fallbackCollectionId = zone.getCollectionId().isBlank() ? zone.getName() : zone.getCollectionId();
+                                    zone.setCollectionId(fallbackCollectionId);
+                                } else {
+                                    zone.setCollectionId("");
+                                }
+                                renderZones(zoneList);
+                            });
+                    zoneDetails.child(useCollection);
+                }
+
+                if (allowCollections && zone.hasCollectionId()) {
+                    zoneDetails.child(label(Text.of("Collection ID")).shadow(true));
+                    TextAreaComponent collectionInput = textArea(
+                            Sizing.fill(WIDE_INPUT_WIDTH),
+                            Sizing.fill(COLLECTION_INPUT_HEIGHT)
+                    ).text(zone.getCollectionId());
+                    collectionInput.onChanged().subscribe(zone::setCollectionId);
+                    zoneDetails.child(collectionInput);
+                } else {
+                    zoneDetails.child(label(Text.of("Extra Instructions")).shadow(true));
+                    TextAreaComponent instructionsInput = textArea(
+                            Sizing.fill(WIDE_INPUT_WIDTH),
+                            Sizing.fill(ZONE_INSTRUCTIONS_HEIGHT)
+                    ).text(zone.getInstructions());
+                    instructionsInput.onChanged().subscribe(zone::setInstructions);
+                    zoneDetails.child(instructionsInput);
+                }
 
                 zoneDetails.child(button(Text.of("Remove Zone"), button -> {
                     expandedZones.remove(zone);

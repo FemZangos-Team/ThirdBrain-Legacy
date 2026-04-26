@@ -1,6 +1,7 @@
 package me.sailex.secondbrain.common
 
 import me.sailex.altoclef.multiversion.EntityVer
+import me.sailex.secondbrain.llm.LLMClient
 import me.sailex.secondbrain.auth.UsernameValidator
 import me.sailex.secondbrain.callback.NPCEvents
 import me.sailex.secondbrain.config.ConfigProvider
@@ -10,6 +11,7 @@ import me.sailex.secondbrain.database.resources.ResourceProvider
 import me.sailex.secondbrain.exception.NPCCreationException
 import me.sailex.secondbrain.model.NPC
 import me.sailex.secondbrain.util.LogUtil
+import me.sailex.secondbrain.llm.LLMType
 import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.PlayerManager
@@ -30,10 +32,32 @@ class NPCService(
     }
 
     private lateinit var executorService: ExecutorService
+    @Volatile
+    private var deathListenerRegistered = false
     val uuidToNpc = ConcurrentHashMap<UUID, NPC>()
 
     fun init() {
         executorService = Executors.newSingleThreadExecutor()
+        resetAllNpcsToInactive()
+        registerDeathListener()
+    }
+
+    private fun resetAllNpcsToInactive() {
+        configProvider.getNpcConfigs().forEach { config ->
+            config.isActive = false
+            configProvider.saveNpcConfig(config)
+        }
+    }
+
+    @Synchronized
+    private fun registerDeathListener() {
+        if (deathListenerRegistered) {
+            return
+        }
+        NPCEvents.ON_DEATH.register {
+            removeNpc(it.uuid, EntityVer.getWorld(it).server!!.playerManager)
+        }
+        deathListenerRegistered = true
     }
 
     fun createNpc(newConfig: NPCConfig, server: MinecraftServer, spawnPos: BlockPos?, owner: PlayerEntity?) {
@@ -44,18 +68,29 @@ class NPCService(
 
             val config = updateConfig(newConfig)
 
-            NPCSpawner.spawn(config, server, spawnPos) { npcEntity ->
-                config.uuid = npcEntity.uuid
-                val npc = factory.createNpc(npcEntity, config, resourceProvider.loadedConversations[config.uuid])
-                npc.controller.owner = owner
-                uuidToNpc[config.uuid] = npc
-
-                LogUtil.infoInChat(("Added NPC with name: $name"))
-                npc.eventHandler.onEvent(Instructions.INITIAL_PROMPT)
+            val llmClient: LLMClient = try {
+                factory.initLLMClient(config)
+            } catch (e: Exception) {
+                LogUtil.errorInChat("Failed to reach LLM for NPC '$name': ${e.message}")
+                LogUtil.error(e)
+                markNpcInactive(config.uuid)
+                return@runAsync
             }
 
-            NPCEvents.ON_DEATH.register {
-                removeNpc(it.uuid, EntityVer.getWorld(it).server!!.playerManager)
+            NPCSpawner.spawn(config, server, spawnPos) { npcEntity ->
+                config.uuid = npcEntity.uuid
+                try {
+                    val npc = factory.createNpc(npcEntity, config, resourceProvider.getLoadedConversation(config.uuid), llmClient)
+                    npc.controller.owner = owner
+                    uuidToNpc[config.uuid] = npc
+                    LogUtil.infoInChat(("Added NPC with name: $name"))
+                    npc.eventHandler.onEvent(Instructions.INITIAL_PROMPT)
+                } catch (e: Exception) {
+                    LogUtil.errorInChat("Failed to create NPC '$name' after spawn: ${e.message}")
+                    LogUtil.error(e)
+                    NPCSpawner.remove(npcEntity.uuid, server.playerManager)
+                    markNpcInactive(config.uuid)
+                }
             }
         }, executorService).exceptionally {
             LogUtil.errorInChat(it.message)
@@ -64,7 +99,17 @@ class NPCService(
         }
     }
 
-fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
+	fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus =
+		setMemoryUnlockedForNpc(npcName, memoryId, true)
+
+	fun lockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus =
+		setMemoryUnlockedForNpc(npcName, memoryId, false)
+
+	private fun setMemoryUnlockedForNpc(
+		npcName: String,
+		memoryId: String,
+		unlocked: Boolean
+	): MemoryUnlockStatus {
 		val configResult = configProvider.getNpcConfigByName(npcName)
 		if (configResult.isEmpty) {
 			return MemoryUnlockStatus.NPC_NOT_FOUND
@@ -75,12 +120,13 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
 		if (memoryOpt.isEmpty) {
 			return MemoryUnlockStatus.MEMORY_NOT_FOUND
 		}
+
 		val memory = memoryOpt.get()
-		if (memory.isUnlocked) {
-			return MemoryUnlockStatus.ALREADY_UNLOCKED
+		if (memory.isUnlocked == unlocked) {
+			return MemoryUnlockStatus.NO_CHANGE
 		}
 
-		memory.isUnlocked = true
+		memory.setUnlocked(unlocked)
 		configProvider.saveNpcConfig(config)
 		return MemoryUnlockStatus.SUCCESS
 	}
@@ -88,6 +134,16 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
 	fun createMemoryForNpc(
 		npcName: String,
 		memoryPrompt: String
+	): MemoryCreateResult = createMemoryForNpc(
+		npcName,
+		memoryPrompt,
+		true
+	)
+
+	fun createMemoryForNpc(
+		npcName: String,
+		memoryPrompt: String,
+		isUnlocked: Boolean
 	): MemoryCreateResult {
 		val normalizedPrompt = memoryPrompt.trim()
 		if (normalizedPrompt.isBlank()) {
@@ -109,7 +165,7 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
 		val newMemory = NPCConfig.MemoryFragment(
 				generatedMemoryId,
 				normalizedPrompt,
-				true
+				isUnlocked
 		)
 		config.getMemoryFragments().add(newMemory)
 		configProvider.saveNpcConfig(config)
@@ -125,32 +181,59 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
 	}
 
     fun removeNpc(uuid: UUID, playerManager: PlayerManager) {
-        val npcToRemove = uuidToNpc[uuid]
-        if (npcToRemove != null) {
-            npcToRemove.controller.stop()
-            npcToRemove.llmClient.stopService()
-            npcToRemove.eventHandler.stopService()
-            npcToRemove.contextProvider.chunkManager.stopService()
-            resourceProvider.addConversations(uuid,npcToRemove.history.latestConversations)
-            uuidToNpc.remove(uuid)
+        val configOpt = configProvider.getNpcConfig(uuid)
+        val configName = if (configOpt.isPresent) configOpt.get().npcName else uuid.toString()
+        val npcToRemove = uuidToNpc.remove(uuid)
 
-            NPCSpawner.remove(npcToRemove.entity.uuid, playerManager)
+        if (npcToRemove == null) {
+            safely("remove entity for '$configName'") { NPCSpawner.remove(uuid, playerManager) }
+            markNpcInactive(uuid)
+            LogUtil.infoInChat("NPC '$configName' was not spawned. Marked as despawned.")
+            return
+        }
 
-            val config = configProvider.getNpcConfig(uuid)
-            if (config.isPresent) {
-                config.get().isActive = false
-                LogUtil.infoInChat("Removed NPC with name ${config.get().npcName}")
-            } else {
-                LogUtil.infoInChat("Removed NPC with uuid $uuid")
-            }
+        safely("stop controller for '$configName'") { npcToRemove.controller.stop() }
+        safely("stop llm client for '$configName'") { npcToRemove.llmClient.stopService() }
+        safely("stop event handler for '$configName'") { npcToRemove.eventHandler.stopService() }
+        safely("stop chunk manager for '$configName'") { npcToRemove.contextProvider.chunkManager.stopService() }
+        safely("persist latest conversations for '$configName'") {
+            resourceProvider.addConversations(uuid, npcToRemove.history.latestConversations)
+        }
+        safely("remove entity for '$configName'") { NPCSpawner.remove(npcToRemove.entity.uuid, playerManager) }
+
+        markNpcInactive(uuid)
+        LogUtil.infoInChat("Removed NPC with name $configName")
+    }
+
+    private fun markNpcInactive(uuid: UUID) {
+        val config = configProvider.getNpcConfig(uuid)
+        if (config.isPresent) {
+            val npcConfig = config.get()
+            npcConfig.isActive = false
+            configProvider.saveNpcConfig(npcConfig)
+        }
+    }
+
+    private fun safely(action: String, cleanupAction: () -> Unit) {
+        try {
+            cleanupAction()
+        } catch (e: Exception) {
+            LogUtil.error("Failed to $action during npc despawn.", e)
         }
     }
 
     fun deleteNpc(uuid: UUID, playerManager: PlayerManager) {
-        resourceProvider.loadedConversations.remove(uuid)
+        resourceProvider.removeLoadedConversation(uuid)
         resourceProvider.conversationRepository.deleteByUuid(uuid)
         removeNpc(uuid, playerManager)
         configProvider.deleteNpcConfig(uuid)
+    }
+
+    fun deleteStoredNpcsByType(llmType: LLMType) {
+        configProvider.deleteByType(llmType).forEach { uuid ->
+            resourceProvider.removeLoadedConversation(uuid)
+            resourceProvider.conversationRepository.deleteByUuid(uuid)
+        }
     }
 
     fun shutdownNPCs(server: MinecraftServer) {
@@ -194,9 +277,9 @@ fun unlockMemoryForNpc(npcName: String, memoryId: String): MemoryUnlockStatus {
 
 	enum class MemoryUnlockStatus {
 		SUCCESS,
+		NO_CHANGE,
 		NPC_NOT_FOUND,
-		MEMORY_NOT_FOUND,
-		ALREADY_UNLOCKED
+		MEMORY_NOT_FOUND
 	}
 
 	enum class MemoryCreateStatus {

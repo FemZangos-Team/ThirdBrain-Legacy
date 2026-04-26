@@ -19,9 +19,11 @@ Recent changes include:
 ### How memory fragments work
 - A memory fragment is a persistent instruction or fact tied to one NPC that can be unlocked or locked.
 - Use it for role rules, lore facts, relationships, or restrictions you want the NPC to unlock and keep over time.
-- Creating a fragment with `/secondbrain memory create <npcName> <memoryPrompt>` stores it and enables it for that NPC.
+- Creating a fragment with `/secondbrain memory create <unlocked|locked> <npcName> <memoryPrompt>` stores it and sets initial unlock state.
 - Unlocking a fragment with `/secondbrain memory unlock <npcName> <memoryId>` enables an existing memory by id.
+- Locking a fragment with `/secondbrain memory lock <npcName> <memoryId>` disables a previously unlocked memory by id.
 - During chat/behavior, unlocked fragments are injected into that NPC's active context so responses stay consistent.
+- Fragment lock state can also be edited directly in the Fragments screen via the `Unlocked` checkbox.
 - Ideal use cases: 
    - An NPC that learns over time
    - NPC that unlocks new information as player progresses through a map
@@ -67,13 +69,18 @@ Example:
 
 > Note: players need operator permission to run these server commands.
 
-#### `/thirdbrain memory create <npcName> <memoryPrompt>`
-- Create and immediately unlock a memory fragment for an NPC.
-- Example: `/thirdbrain memory create Wanderer "Keep an eye out for incoming visitors and greet them warmly."`
+#### `/thirdbrain memory create <unlocked|locked> <npcName> <memoryPrompt>`
+- Create a memory fragment for an NPC and set its initial state.
+- Example unlocked: `/thirdbrain memory create unlocked Wanderer "Keep an eye out for incoming visitors and greet them warmly."`
+- Example locked: `/thirdbrain memory create locked Wanderer "This memory is sensitive until unlocked later."`
 
 #### `/thirdbrain memory unlock <npcName> <memoryId>`
 - Unlock an existing memory fragment for an NPC so it can be used during chat/behavior.
 - Example: `/thirdbrain memory unlock Wanderer home-mem-01`
+
+#### `/thirdbrain memory lock <npcName> <memoryId>`
+- Lock an existing unlocked memory fragment for an NPC so it is no longer injected during chat/behavior.
+- Example: `/thirdbrain memory lock Wanderer home-mem-01`
 
 
 **Interact with NPCs**:

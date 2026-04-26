@@ -106,7 +106,7 @@ public class SecondBrainScreen extends BaseUIModelScreen<FlowLayout> {
 
     private void addNpcEditButton(FlowLayout npcButtonContainer, NPCConfig config) {
         npcButtonContainer.child(button(Text.of("Edit"), button ->
-                client.setScreen(new NPCConfigScreen(networkManager, config, true, npcConfig))
+                client.setScreen(new NPCConfigScreen(networkManager, config, true, npcConfig, this))
         ));
     }
 

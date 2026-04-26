@@ -10,6 +10,7 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import me.sailex.secondbrain.client.networking.ClientNetworkManager;
 import me.sailex.secondbrain.config.NPCConfig;
+import me.sailex.secondbrain.llm.LLMType;
 import me.sailex.secondbrain.networking.packet.UpdateNpcConfigPacket;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
@@ -32,6 +33,7 @@ public class NPCMemoryFragmentsScreen extends ConfigScreen<NPCConfig> {
     private static final int WIDE_INPUT_WIDTH = 42;
     private static final int SINGLE_LINE_INPUT_HEIGHT = 9;
     private static final int PROMPT_INPUT_HEIGHT = 18;
+    private static final int COLLECTION_INPUT_HEIGHT = 9;
     private final IdentityHashMap<NPCConfig.MemoryFragment, Boolean> expandedFragments = new IdentityHashMap<>();
     private final Screen parentScreen;
 
@@ -95,6 +97,7 @@ public class NPCMemoryFragmentsScreen extends ConfigScreen<NPCConfig> {
             if (isExpanded) {
                 FlowLayout fragmentDetails = verticalFlow(Sizing.fill(100), Sizing.content());
                 fragmentDetails.gap(4);
+                boolean allowCollections = config.getLlmType() == LLMType.OPENWEBUI;
 
                 fragmentDetails.child(label(Text.of("ID")).shadow(true));
                 TextAreaComponent idInput = textArea(
@@ -104,13 +107,39 @@ public class NPCMemoryFragmentsScreen extends ConfigScreen<NPCConfig> {
                 idInput.onChanged().subscribe(fragment::setId);
                 fragmentDetails.child(idInput);
 
-                fragmentDetails.child(label(Text.of("Prompt")).shadow(true));
-                TextAreaComponent promptInput = textArea(
-                        Sizing.fill(WIDE_INPUT_WIDTH),
-                        Sizing.fill(PROMPT_INPUT_HEIGHT)
-                ).text(fragment.getPrompt());
-                promptInput.onChanged().subscribe(fragment::setPrompt);
-                fragmentDetails.child(promptInput);
+                if (allowCollections) {
+                    CheckboxComponent useCollection = checkbox(Text.of("Use Collection (OpenWebUI)"))
+                            .checked(fragment.hasCollectionId())
+                            .onChanged(checked -> {
+                                if (checked) {
+                                    fragment.setPrompt("");
+                                    String fallbackCollectionId = fragment.getCollectionId().isBlank() ? fragment.getId() : fragment.getCollectionId();
+                                    fragment.setCollectionId(fallbackCollectionId);
+                                } else {
+                                    fragment.setCollectionId("");
+                                }
+                                renderFragments(fragmentList);
+                            });
+                    fragmentDetails.child(useCollection);
+                }
+
+                if (allowCollections && fragment.hasCollectionId()) {
+                    fragmentDetails.child(label(Text.of("Collection ID")).shadow(true));
+                    TextAreaComponent collectionInput = textArea(
+                            Sizing.fill(WIDE_INPUT_WIDTH),
+                            Sizing.fill(COLLECTION_INPUT_HEIGHT)
+                    ).text(fragment.getCollectionId());
+                    collectionInput.onChanged().subscribe(fragment::setCollectionId);
+                    fragmentDetails.child(collectionInput);
+                } else {
+                    fragmentDetails.child(label(Text.of("Prompt")).shadow(true));
+                    TextAreaComponent promptInput = textArea(
+                            Sizing.fill(WIDE_INPUT_WIDTH),
+                            Sizing.fill(PROMPT_INPUT_HEIGHT)
+                    ).text(fragment.getPrompt());
+                    promptInput.onChanged().subscribe(fragment::setPrompt);
+                    fragmentDetails.child(promptInput);
+                }
 
                 CheckboxComponent unlocked = checkbox(Text.of("Unlocked"))
                         .checked(fragment.isUnlocked())

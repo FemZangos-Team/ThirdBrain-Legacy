@@ -52,7 +52,7 @@ public class ContextProvider {
 			WorldContext context = new WorldContext(
 					state,
 					inventory,
-					chunkManager.getNearbyBlocks(),
+					List.copyOf(chunkManager.getNearbyBlocks()),
 					nearbyEntities.entities()
 			);
 //			chunkManager.getNearbyBlocks().forEach(blockData -> LogUtil.debugInChat(blockData.toString()));

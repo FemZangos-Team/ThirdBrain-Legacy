@@ -14,6 +14,14 @@ public interface LLMClient {
     Message chat(List<Message> messages);
 
     /**
+     * Lets providers consume extra retrieval collections if supported.
+     * Implementations that do not support collections can ignore this argument.
+     */
+    default Message chat(List<Message> messages, List<String> collectionIds) {
+        return chat(messages);
+    }
+
+    /**
      * Check if the service is reachable
      */
     void checkServiceIsReachable();
