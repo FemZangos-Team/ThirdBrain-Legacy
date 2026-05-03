@@ -1,7 +1,7 @@
 <h1 align="center" style="font-weight: normal;"><b>ThirdBrain</b></h1>
 <p align="center"><img src="https://raw.githubusercontent.com/sailex428/SecondBrain/refs/heads/main/logo.png" alt="mod-logo"></p>
 
-A Fabric mod that brings intelligent NPCs to your minecraft world. ThirdBrain is a fork of SecondBrain that focuses on in-world NPC behavior for prebuilt experiences, rather than companion-style automation. Create player-like characters controlled by LLMs that respond to chat and support authored gameplay.
+A Forge/Fabric mod that brings intelligent NPCs to your minecraft world. ThirdBrain is a fork of SecondBrain that focuses on in-world NPC behavior for prebuilt experiences, rather than companion-style automation. Create player-like characters controlled by LLMs that respond to chat and support authored gameplay.
 
 **This mod works fully serverside. It must also be installed on a client for setup.**
 
@@ -40,11 +40,11 @@ Example:
 
 ## What I did not test
 
-- I did not test the mod with the Player2 App, I only tested it with Ollama and OpenAI.
+- I did not test the mod with the Player2 App, which soon will be tested.
 
 ## Requirements
       
-- **Minecraft Version**: 1.21.10 (Create an issue if you need a different version)
+- **Minecraft Version**: 1.16.5/1.18.2 (1.18.2 recommended)
 - **Running Ollama server OR Player2 App OR an OpenAi Key**
 
 ## Mod Installation
