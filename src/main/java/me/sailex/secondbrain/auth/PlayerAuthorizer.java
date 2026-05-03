@@ -10,7 +10,7 @@ public class PlayerAuthorizer {
      * Checks whether a command source has operator-level permissions, using the version-appropriate API.
      *
      * @param source the command source being evaluated
-     * @return true when the source is allowed to run operator-only actions
+     * @return true when the source has operator permission level 2
      */
     public static boolean hasOperatorPermission(ServerCommandSource source) {
         /*? >=1.21.11 {*/
@@ -24,7 +24,7 @@ public class PlayerAuthorizer {
      * Checks whether a player has operator-level permissions, using the version-appropriate API.
      *
      * @param player the player being evaluated
-     * @return true when the player is allowed to receive operator-only actions and messages
+     * @return true when the player has operator permission level 2
      */
     public static boolean hasOperatorPermission(ServerPlayerEntity player) {
         /*? >=1.21.11 {*/
