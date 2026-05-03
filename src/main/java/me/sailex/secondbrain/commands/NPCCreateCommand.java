@@ -8,6 +8,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import lombok.AllArgsConstructor;
 import me.sailex.altoclef.multiversion.EntityVer;
+import me.sailex.secondbrain.auth.PlayerAuthorizer;
 import me.sailex.secondbrain.common.NPCService;
 import me.sailex.secondbrain.config.NPCConfig;
 import me.sailex.secondbrain.llm.LLMType;
@@ -25,7 +26,7 @@ public class NPCCreateCommand {
 
 	public LiteralArgumentBuilder<ServerCommandSource> getCommand() {
 		return literal("add")
-				.requires(/*? >=1.21.11 {*/ source -> net.minecraft.server.command.CommandManager.MODERATORS_CHECK.allows(source.getPermissions()) /*?} else {*/ source -> source.hasPermissionLevel(2) /*?}*/)
+				.requires(PlayerAuthorizer::hasOperatorPermission)
 				.then(argument("name", StringArgumentType.string())
 						.then(argument(LLM_TYPE, StringArgumentType.string())
 								.suggests((context, builder) -> {

@@ -1,5 +1,6 @@
 package me.sailex.secondbrain.util;
 
+import me.sailex.secondbrain.auth.PlayerAuthorizer;
 import me.sailex.secondbrain.config.ConfigProvider;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.text.MutableText;
@@ -108,7 +109,7 @@ public class LogUtil {
 	private static void log(MutableText formattedMessage) {
 		if (server != null) {
 			server.getPlayerManager().getPlayerList().stream()
-					.filter(player -> /*? >=1.21.11 {*/ net.minecraft.server.command.CommandManager.MODERATORS_CHECK.allows(player.getPermissions()) /*?} else {*/ player.hasPermissionLevel(2) /*?}*/)
+					.filter(PlayerAuthorizer::hasOperatorPermission)
 					.forEach(player -> player.sendMessage(formattedMessage, false));
 		} else {
 			LOGGER.error("{}server is null - cant log to ingame chat!", PREFIX.getString());

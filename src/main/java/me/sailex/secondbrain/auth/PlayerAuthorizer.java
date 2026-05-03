@@ -1,8 +1,26 @@
 package me.sailex.secondbrain.auth;
 
 import io.wispforest.owo.network.ServerAccess;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
 
 public class PlayerAuthorizer {
+
+    public static boolean hasOperatorPermission(ServerCommandSource source) {
+        /*? >=1.21.11 {*/
+        /*return net.minecraft.server.command.CommandManager.MODERATORS_CHECK.allows(source.getPermissions());
+        *//*?} else {*/
+        return source.hasPermissionLevel(2);
+        /*?}*/
+    }
+
+    public static boolean hasOperatorPermission(ServerPlayerEntity player) {
+        /*? >=1.21.11 {*/
+        /*return net.minecraft.server.command.CommandManager.MODERATORS_CHECK.allows(player.getPermissions());
+        *//*?} else {*/
+        return player.hasPermissionLevel(2);
+        /*?}*/
+    }
 
     /**
      * The player is considered authorized if they have the "operator" permission level.
@@ -11,7 +29,7 @@ public class PlayerAuthorizer {
      * @return true if the player is authorized, otherwise false
      */
     public boolean isAuthorized(ServerAccess serverAccess) {
-        return /*? >=1.21.11 {*/ net.minecraft.server.command.CommandManager.MODERATORS_CHECK.allows(serverAccess.player().getPermissions()) /*?} else {*/ serverAccess.player().hasPermissionLevel(2) /*?}*/;
+        return hasOperatorPermission(serverAccess.player());
     }
 
     public boolean isLocalConnection(ServerAccess serverAccess) {

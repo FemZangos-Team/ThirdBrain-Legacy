@@ -7,6 +7,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import lombok.AllArgsConstructor;
+import me.sailex.secondbrain.auth.PlayerAuthorizer;
 import me.sailex.secondbrain.common.NPCService;
 import me.sailex.secondbrain.config.ConfigProvider;
 import me.sailex.secondbrain.config.NPCConfig;
@@ -23,7 +24,7 @@ public class NPCMemoryCommand {
 
 	public LiteralArgumentBuilder<ServerCommandSource> getCommand() {
 		return literal("memory")
-			.requires(/*? >=1.21.11 {*/ source -> net.minecraft.server.command.CommandManager.MODERATORS_CHECK.allows(source.getPermissions()) /*?} else {*/ source -> source.hasPermissionLevel(2) /*?}*/)
+			.requires(PlayerAuthorizer::hasOperatorPermission)
 			.then(literal("create")
 				.then(literal("unlocked")
 					.then(argument("npcName", StringArgumentType.string())
