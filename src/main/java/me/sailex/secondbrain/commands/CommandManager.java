@@ -4,6 +4,7 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import lombok.AllArgsConstructor;
+import me.sailex.secondbrain.auth.PlayerAuthorizer;
 import me.sailex.secondbrain.common.NPCService;
 import me.sailex.secondbrain.common.Player2NpcSynchronizer;
 import me.sailex.secondbrain.config.ConfigProvider;
@@ -33,7 +34,7 @@ public class CommandManager {
 
 	private LiteralArgumentBuilder<ServerCommandSource> buildRootCommand(String literalName) {
 		return literal(literalName)
-			.requires(/*? >=1.21.11 {*/ source -> net.minecraft.server.command.CommandManager.MODERATORS_CHECK.allows(source.getPermissions()) /*?} else {*/ source -> source.hasPermissionLevel(2) /*?}*/)
+			.requires(PlayerAuthorizer::hasOperatorPermission)
 			.then(new NPCCreateCommand(npcService).getCommand())
 			.then(new NPCMemoryCommand(npcService, configProvider).getCommand())
 			.then(new NPCRemoveCommand(npcService, configProvider).getCommand())

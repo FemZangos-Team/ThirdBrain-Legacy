@@ -9,6 +9,7 @@ import com.mojang.brigadier.context.CommandContext;
 
 import lombok.AllArgsConstructor;
 
+import me.sailex.secondbrain.auth.PlayerAuthorizer;
 import me.sailex.secondbrain.common.NPCService;
 import me.sailex.secondbrain.config.ConfigProvider;
 import me.sailex.secondbrain.config.NPCConfig;
@@ -25,7 +26,7 @@ public class NPCRemoveCommand {
 
 	public LiteralArgumentBuilder<ServerCommandSource> getCommand() {
 		return literal("remove")
-				.requires(/*? >=1.21.11 {*/ source -> net.minecraft.server.command.CommandManager.MODERATORS_CHECK.allows(source.getPermissions()) /*?} else {*/ source -> source.hasPermissionLevel(2) /*?}*/)
+				.requires(PlayerAuthorizer::hasOperatorPermission)
 				.then(argument("name", StringArgumentType.string())
 						.suggests((context, builder) -> {
 							configProvider.getNpcConfigs().stream().map(NPCConfig::getNpcName).forEach(builder::suggest);
