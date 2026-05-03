@@ -1,4 +1,4 @@
-name: build
+name: build-1.20.1
 on:
   pull_request:
     branches:
@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build 1.20.1
     runs-on: ubuntu-22.04
 
     steps:
@@ -23,20 +23,20 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'oracle'
-          java-version: '21'
+          java-version: '17'
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
       - name: Build
-        run: ./gradlew build
+        run: ./gradlew :1.20.1:build
 
       - name: Capture build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: built-jars
+          name: built-jars-1.20.1
           path: |
-            **/build/libs/
+            versions/1.20.1/build/libs/
 
 #  runtimeTest:
 #    if: ${{ success() }}
