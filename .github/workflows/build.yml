@@ -1,4 +1,4 @@
-name: build-1.20.1
+name: Build 1.20.1
 on:
   pull_request:
     branches:
@@ -9,6 +9,9 @@ on:
     paths-ignore:
       - '**.md'
   workflow_dispatch:
+
+env:
+  MC_VERSION: '1.20.1'
 
 jobs:
   build:
@@ -29,14 +32,14 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build
-        run: ./gradlew :1.20.1:build
+        run: ./gradlew ":${MC_VERSION}:build"
 
       - name: Capture build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: built-jars-1.20.1
+          name: built-jars-${{ env.MC_VERSION }}
           path: |
-            versions/1.20.1/build/libs/
+            versions/${{ env.MC_VERSION }}/build/libs/
 
 #  runtimeTest:
 #    if: ${{ success() }}
